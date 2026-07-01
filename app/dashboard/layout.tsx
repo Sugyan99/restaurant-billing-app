@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ToastContainer } from "@/components/Toast";
+import { AIAssistant } from "@/components/AIAssistant";
 
 const NAV = [
   { href: "/dashboard/tables", icon: "🪑", label: "Tables & Orders" },
@@ -79,6 +80,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </main>
 
       <ToastContainer />
+      <AIAssistant />
     </div>
   );
 }
