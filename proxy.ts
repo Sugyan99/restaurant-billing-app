@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 // components, since the `jsonwebtoken` library needs Node's crypto module which
 // isn't available in Next.js Edge Middleware. Here we just check the cookie
 // exists, as a fast first line of defense before the page even loads.
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
   const isOnDashboard = req.nextUrl.pathname.startsWith("/dashboard");
 

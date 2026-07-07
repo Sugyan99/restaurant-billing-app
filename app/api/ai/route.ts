@@ -59,11 +59,11 @@ export async function POST(req: NextRequest) {
     prisma.settings.findFirst(),
   ]);
 
-  const totalRevenue = bills.reduce((s, b) => s + b.total, 0);
+  const totalRevenue = bills.reduce((s: number, b) => s + b.total, 0);
   const todayBills = bills.filter(
     (b) => new Date(b.createdAt).toDateString() === new Date().toDateString()
   );
-  const todayRevenue = todayBills.reduce((s, b) => s + b.total, 0);
+  const todayRevenue = todayBills.reduce((s: number, b) => s + b.total, 0);
 
   // Get top item names
   const menuItems = await prisma.menuItem.findMany({
