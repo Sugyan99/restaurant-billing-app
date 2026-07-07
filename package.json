@@ -20,17 +20,17 @@
     "react-dom": "19.2.4",
     "zod": "^4.4.3",
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^20",
+    "tailwindcss": "^4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.9",
+    "@types/node": "^20",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "typescript": "^5",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9"
+  },
+  "devDependencies": {
     "prisma": "6.12.0"
   }
 }
