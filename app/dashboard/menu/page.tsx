@@ -30,7 +30,14 @@ export default function MenuPage() {
 
   function openAddItem(categoryId?: string) {
     setEditItem(null);
-    setItemForm({ ...EMPTY_FORM, categoryId: categoryId ?? categories[0]?.id ?? "" });
+    const firstCatId = categoryId ?? categories[0]?.id ?? "";
+    if (!firstCatId) {
+      showToast("Pehle ek category banao, phir item add karo", "error");
+      setActiveTab("categories");
+      setShowCatModal(true);
+      return;
+    }
+    setItemForm({ ...EMPTY_FORM, categoryId: firstCatId });
     setShowItemModal(true);
   }
 
@@ -45,6 +52,9 @@ export default function MenuPage() {
 
   async function saveItem() {
     setLoading(true);
+    if (!itemForm.name.trim()) { showToast("Item name required", "error"); setLoading(false); return; }
+    if (!itemForm.price || parseFloat(itemForm.price) <= 0) { showToast("Valid price required", "error"); setLoading(false); return; }
+    if (!itemForm.categoryId) { showToast("Category select karo", "error"); setLoading(false); return; }
     const body = { ...itemForm, price: parseFloat(itemForm.price) };
     try {
       const url = editItem ? `/api/menu-items/${editItem.id}` : "/api/menu-items";
