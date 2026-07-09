@@ -6,7 +6,7 @@ type Message = { role: "user" | "ai"; text: string };
 export function AIAssistant() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: "ai", text: "Namaste! Main aapka restaurant AI assistant hu. Koi bhi sales, menu, ya billing ke baare mein poochh sakte ho! 🍽️" },
+    { role: "ai", text: "Hello! I am your restaurant AI assistant. Ask me anything about sales, menu, or billing! 🍽️" },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -70,14 +70,14 @@ export function AIAssistant() {
             ))}
             {loading && (
               <div style={{ alignSelf: "flex-start", background: "#F1F5F9", padding: "8px 12px", borderRadius: "12px 12px 12px 4px", fontSize: 13, color: "#94A3B8" }}>
-                Soch raha hu...
+                Thinking...
               </div>
             )}
           </div>
 
           {/* Suggestions */}
           <div style={{ padding: "0 12px 8px", display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {["Aaj ki sale?", "Top items?", "Pending bills?"].map((s) => (
+            {["Today's sales?", "Top items?", "Pending bills?"].map((s) => (
               <button key={s} onClick={() => { setInput(s); }} style={{
                 fontSize: 11, padding: "3px 8px", borderRadius: 20, border: "1px solid #E2E8F0",
                 background: "white", cursor: "pointer", color: "#64748B"
@@ -91,7 +91,7 @@ export function AIAssistant() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && ask()}
-              placeholder="Kuch bhi poochho..."
+              placeholder="Ask anything..."
               style={{
                 flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #E2E8F0",
                 fontSize: 13, outline: "none"

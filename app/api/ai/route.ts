@@ -85,7 +85,7 @@ Current data (last 7 days):
 - Top selling items: ${topItemsFormatted.join(", ") || "No data yet"}
 - GST rate: ${(settings?.cgstPercent ?? 2.5) + (settings?.sgstPercent ?? 2.5)}%
 
-Answer only about restaurant operations, sales, menu, billing topics. Respond in the same language the user uses (Hindi/English/Hinglish). Keep it brief and actionable.`;
+Answer only about restaurant operations, sales, menu, billing topics. Always respond in English. Keep it brief and actionable.`;
 
   try {
     const answer = await callGroq(systemPrompt, query);

@@ -76,7 +76,7 @@ export default function BillsPage() {
       <div class="row total"><span>TOTAL</span><span>₹${bill.total.toFixed(2)}</span></div>
       ${bill.paymentMode ? `<div class="row"><span>Payment</span><span>${bill.paymentMode}</span></div>` : ""}
       <hr/>
-      <p>Thank you! Visit again 🙏</p>
+      <p>Thank you! Visit us again 🙏</p>
       </body></html>
     `);
     w.document.close();
