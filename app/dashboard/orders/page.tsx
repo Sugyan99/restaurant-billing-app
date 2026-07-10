@@ -6,7 +6,7 @@ type Order = {
   id: string; orderNumber: number; status: string; type: string;
   customerName?: string; createdAt: string;
   table?: { number: string };
-  items: { id: string; quantity: number; price: number; menuItem: { name: string } }[];
+  items: { id: string; quantity: number; price: number; notes?: string; menuItem: { name: string } }[];
   bill?: { id: string; paymentStatus: string; total: number };
 };
 
