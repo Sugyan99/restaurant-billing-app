@@ -28,7 +28,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push("/login");
   }
 
-  const currentPage = NAV.find((n) => pathname.startsWith(n.href));
+  const allNav = [...NAV_MAIN, ...NAV_MANAGE];
+  const currentPage = allNav.find((n) => pathname.startsWith(n.href));
 
   return (
     <div>
@@ -59,7 +60,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <button
           onClick={logout}
           className="nav-item"
-          style={{ background: "none", border: "none", width: "100%", cursor: "pointer", color: "#94A3B8", marginBottom: 12 }}
+          style={{ background: "none", border: "none", width: "100%", cursor: "pointer", color: "#94A3B8", marginBottom: 12, textAlign: "left" as const }}
         >
           <span>🚪</span>
           <span>Logout</span>

@@ -36,6 +36,10 @@ export async function PUT(req: NextRequest) {
         cgstPercent: body.cgstPercent,
         sgstPercent: body.sgstPercent,
         phone: body.phone,
+        email: body.email,
+        website: body.website,
+        currency: body.currency,
+        openingCash: body.openingCash,
       },
     });
   }
