@@ -21,7 +21,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState<{ name: string; email: string; password: string; role: "OWNER"|"MANAGER"|"CASHIER"|"KITCHEN"; phone: string }>(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -41,7 +41,7 @@ export default function UsersPage() {
 
   function openEdit(user: User) {
     setEditUser(user);
-    setForm({ name: user.name, email: user.email, password: "", role: user.role as typeof ROLES[number], phone: user.phone ?? "" });
+    setForm({ name: user.name, email: user.email, password: "", role: user.role as "OWNER" | "MANAGER" | "CASHIER" | "KITCHEN", phone: user.phone ?? "" });
     setShowModal(true);
   }
 
