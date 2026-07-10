@@ -11,9 +11,13 @@ const datasourceUrl =
   process.env.DATABASE_URL ||
   process.env.POSTGRES_URL;
 
+// FIX: Throw error instead of silent fail
 if (!datasourceUrl) {
-  console.error(
-    "❌ No database URL found. Set DATABASE_URL or POSTGRES_PRISMA_URL in Vercel Environment Variables."
+  throw new Error(
+    "❌ CRITICAL: No database URL found. Please set one of these environment variables in Vercel:\n" +
+      "  - POSTGRES_PRISMA_URL (recommended for Vercel-Supabase integration)\n" +
+      "  - DATABASE_URL (standard PostgreSQL connection string)\n" +
+      "  - POSTGRES_URL (alternative)"
   );
 }
 

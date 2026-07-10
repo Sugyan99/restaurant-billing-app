@@ -17,15 +17,36 @@ const createOrderSchema = z.object({
   items: z.array(orderItemSchema).min(1, "Order must have at least one item"),
 });
 
+const orderStatusEnum = z.enum([
+  "PENDING",
+  "PREPARING",
+  "READY",
+  "SERVED",
+  "CANCELLED",
+]);
+
 export async function GET(req: NextRequest) {
   const session = requireAuth(req);
   if (isAuthError(session)) return session;
 
   const { searchParams } = new URL(req.url);
-  const status = searchParams.get("status");
+  const statusParam = searchParams.get("status");
+
+  // Validate status enum - FIX: Don't trust client input
+  let status: (typeof orderStatusEnum._type) | undefined;
+  if (statusParam) {
+    const validStatus = orderStatusEnum.safeParse(statusParam);
+    if (!validStatus.success) {
+      return NextResponse.json(
+        { error: `Invalid status. Must be one of: PENDING, PREPARING, READY, SERVED, CANCELLED` },
+        { status: 400 }
+      );
+    }
+    status = validStatus.data;
+  }
 
   const orders = await prisma.order.findMany({
-    where: status ? { status: status as "PENDING" | "PREPARING" | "READY" | "SERVED" | "CANCELLED" } : {},
+    where: status ? { status } : {},
     include: {
       items: { include: { menuItem: true } },
       table: true,
@@ -68,13 +89,18 @@ export async function POST(req: NextRequest) {
   });
 
   if (menuItems.length !== menuItemIds.length) {
-    return NextResponse.json({ error: "One or more menu items not found" }, { status: 400 });
+    return NextResponse.json(
+      { error: "One or more menu items not found" },
+      { status: 400 }
+    );
   }
 
   const unavailable = menuItems.filter((m) => !m.isAvailable);
   if (unavailable.length > 0) {
     return NextResponse.json(
-      { error: `These items are currently unavailable: ${unavailable.map((m) => m.name).join(", ")}` },
+      {
+        error: `These items are currently unavailable: ${unavailable.map((m) => m.name).join(", ")}`,
+      },
       { status: 400 }
     );
   }
