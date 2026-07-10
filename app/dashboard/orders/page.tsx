@@ -33,6 +33,35 @@ export default function OrdersPage() {
     return () => clearInterval(interval);
   }, [load]);
 
+  function printKOT(order: Order) {
+    const w = window.open("", "_blank", "width=300,height=500");
+    if (!w) return;
+    w.document.write(`
+      <html><head><title>KOT #${order.orderNumber}</title>
+      <style>body{font-family:monospace;font-size:14px;padding:12px;max-width:280px}
+      h2{text-align:center;margin:0 0 4px;font-size:16px}
+      p{text-align:center;margin:2px 0;font-size:12px}
+      hr{border:none;border-top:1px dashed #000;margin:8px 0}
+      .item{display:flex;justify-content:space-between;margin:4px 0;font-size:13px}
+      .notes{font-size:11px;color:#666;margin:-2px 0 4px 0}
+      </style></head><body>
+      <h2>KITCHEN ORDER</h2>
+      <p><b>${order.table ? "Table: " + order.table.number : order.type}</b></p>
+      <p>Order #${order.orderNumber}</p>
+      <p>${new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</p>
+      <hr/>
+      ${order.items.map(i => `
+        <div class="item"><span>${i.menuItem.name}</span><span><b>x${i.quantity}</b></span></div>
+        ${i.notes ? '<div class="notes">Note: ' + i.notes + '</div>' : ''}
+      `).join("")}
+      <hr/>
+      <p style="text-align:center;font-size:11px">** KOT **</p>
+      </body></html>
+    `);
+    w.document.close();
+    setTimeout(() => w.print(), 300);
+  }
+
   async function updateStatus(order: Order, newStatus: string) {
     const res = await fetch(`/api/orders/${order.id}`, {
       method: "PUT",
@@ -120,14 +149,16 @@ export default function OrdersPage() {
                 </div>
 
                 {/* Actions */}
-                {nextStatus && (
-                  <div style={{ padding: "10px 14px" }}>
-                    <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", fontSize: 12 }}
+                <div style={{ padding: "10px 14px", display: "flex", gap: 6 }}>
+                  <button className="btn btn-ghost btn-sm" style={{ flex: 1, justifyContent: "center" }}
+                    onClick={() => printKOT(order)}>🖨️ KOT</button>
+                  {nextStatus && (
+                    <button className="btn btn-primary btn-sm" style={{ flex: 2, justifyContent: "center" }}
                       onClick={() => updateStatus(order, nextStatus)}>
-                      Mark as {nextStatus} →
+                      → {nextStatus}
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}

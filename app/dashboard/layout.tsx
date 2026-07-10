@@ -5,16 +5,19 @@ import { ToastContainer } from "@/components/Toast";
 import { AIAssistant } from "@/components/AIAssistant";
 
 const NAV_MAIN = [
+  { href: "/dashboard/home", icon: "🏠", label: "Dashboard" },
   { href: "/dashboard/tables", icon: "🪑", label: "Tables & Orders" },
   { href: "/dashboard/orders", icon: "📋", label: "All Orders" },
   { href: "/dashboard/bills", icon: "🧾", label: "Bills" },
 ];
 const NAV_MANAGE = [
   { href: "/dashboard/menu", icon: "🍽️", label: "Menu" },
+  { href: "/dashboard/inventory", icon: "📦", label: "Inventory" },
   { href: "/dashboard/customers", icon: "👤", label: "Customers" },
   { href: "/dashboard/expenses", icon: "💰", label: "Expenses" },
   { href: "/dashboard/day-close", icon: "🔒", label: "Day Close" },
   { href: "/dashboard/reports", icon: "📊", label: "Reports" },
+  { href: "/dashboard/gst-report", icon: "🧾", label: "GST Report" },
   { href: "/dashboard/users", icon: "👥", label: "Staff" },
   { href: "/dashboard/settings", icon: "⚙️", label: "Settings" },
 ];
