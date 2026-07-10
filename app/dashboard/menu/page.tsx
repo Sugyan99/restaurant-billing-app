@@ -148,7 +148,7 @@ export default function MenuPage() {
           </div>
 
           {/* Items by category */}
-          {(searchTerm ? [{ id: "search", name: "Search Results", items: filtered as any[] }] : categories).map((cat) => {
+          {(searchTerm ? [{ id: "search", name: "Search Results", sortOrder: 0, items: filtered }] : categories).map((cat) => {
             const items = searchTerm ? filtered : cat.items.map((i) => ({ ...i, categoryId: cat.id, categoryName: cat.name }));
             if (items.length === 0 && !searchTerm) return null;
             return (
