@@ -18,6 +18,8 @@ const NAV_MANAGE = [
   { href: "/dashboard/day-close", icon: "🔒", label: "Day Close" },
   { href: "/dashboard/reports", icon: "📊", label: "Reports" },
   { href: "/dashboard/gst-report", icon: "🧾", label: "GST Report" },
+  { href: "/dashboard/reservations", icon: "📅", label: "Reservations" },
+  { href: "/dashboard/discounts", icon: "🏷️", label: "Discounts" },
   { href: "/dashboard/users", icon: "👥", label: "Staff" },
   { href: "/dashboard/settings", icon: "⚙️", label: "Settings" },
 ];

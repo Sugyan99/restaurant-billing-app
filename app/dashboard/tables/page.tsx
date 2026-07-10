@@ -27,6 +27,7 @@ export default function TablesPage() {
   const [discount, setDiscount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [discounts, setDiscounts] = useState<{id:string;name:string;type:string;value:number}[]>([]);
 
   const loadTables = useCallback(async () => {
     const res = await fetch("/api/tables");
@@ -43,6 +44,7 @@ export default function TablesPage() {
   useEffect(() => {
     loadTables();
     loadCategories();
+    fetch("/api/discounts").then(r=>r.json()).then(d=>setDiscounts(d.discounts??[]));
     const interval = setInterval(loadTables, 15000); // auto-refresh every 15s
     return () => clearInterval(interval);
   }, [loadTables, loadCategories]);
@@ -308,13 +310,21 @@ export default function TablesPage() {
                   <div className="bill-row">
                     <span>Subtotal</span><span>₹{subtotal.toFixed(2)}</span>
                   </div>
-                  <div className="bill-row" style={{ alignItems: "center" }}>
-                    <span>Discount</span>
-                    <input
-                      type="number" min="0" value={discount}
-                      onChange={(e) => setDiscount(Number(e.target.value))}
-                      style={{ width: 70, padding: "2px 8px", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 12, textAlign: "right" }}
-                    />
+                  <div className="bill-row" style={{ alignItems: "center", flexDirection: "column", gap: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                      <span>Discount</span>
+                      <input type="number" min="0" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} style={{ width: 70, padding: "2px 8px", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 12, textAlign: "right" }} />
+                    </div>
+                    {discounts.length > 0 && (
+                      <select className="form-select" style={{ fontSize: 11, padding: "2px 6px" }}
+                        onChange={e => {
+                          const d = discounts.find(x => x.id === e.target.value);
+                          if (d) setDiscount(d.type === "PERCENT" ? parseFloat(((subtotal * d.value) / 100).toFixed(2)) : d.value);
+                        }}>
+                        <option value="">Quick discounts</option>
+                        {discounts.map(d => <option key={d.id} value={d.id}>{d.name} ({d.type==="PERCENT"?`${d.value}%`:`₹${d.value}`})</option>)}
+                      </select>
+                    )}
                   </div>
                   <div className="bill-row"><span>CGST (2.5%)</span><span>₹{cgst.toFixed(2)}</span></div>
                   <div className="bill-row"><span>SGST (2.5%)</span><span>₹{sgst.toFixed(2)}</span></div>

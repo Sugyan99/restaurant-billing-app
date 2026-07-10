@@ -20,17 +20,20 @@ export default function HomePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [time, setTime] = useState(new Date());
+  const [trend, setTrend] = useState<{daily:{date:string;revenue:number;orders:number}[];peakHour:{hour:string;revenue:string}|null}|null>(null);
 
   const load = useCallback(async () => {
-    const [statsRes, ordersRes, tablesRes] = await Promise.all([
+    const [statsRes, ordersRes, tablesRes, trendRes] = await Promise.all([
       fetch("/api/reports?type=today"),
       fetch("/api/orders?status=PENDING"),
       fetch("/api/tables"),
+      fetch("/api/sales-trend"),
     ]);
-    const [s, o, t] = await Promise.all([statsRes.json(), ordersRes.json(), tablesRes.json()]);
+    const [s, o, t, tr] = await Promise.all([statsRes.json(), ordersRes.json(), tablesRes.json(), trendRes.json()]);
     setStats(s);
     setOrders(o.orders ?? []);
     setTables(t.tables ?? []);
+    setTrend(tr);
   }, []);
 
   useEffect(() => {
@@ -163,6 +166,31 @@ export default function HomePage() {
           )}
         </div>
       </div>
+
+      {/* 7-day trend chart */}
+      {trend?.daily && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header">
+            <h3 className="card-title">📈 7-Day Revenue Trend</h3>
+            {trend.peakHour && <span style={{ fontSize: 12, color: "#64748B" }}>Peak: {trend.peakHour.hour}:00 — ₹{trend.peakHour.revenue}</span>}
+          </div>
+          <div className="card-body">
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 80 }}>
+              {trend.daily.map((d, i) => {
+                const max = Math.max(...trend.daily.map(x => x.revenue), 1);
+                const h = Math.max((d.revenue / max) * 72, 4);
+                return (
+                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 9, color: "#64748B" }}>₹{d.revenue > 999 ? `${(d.revenue/1000).toFixed(1)}k` : d.revenue}</span>
+                    <div style={{ width: "100%", height: h, background: i === 6 ? "#E8721C" : "#E8721C40", borderRadius: 4, transition: "height 0.3s" }} />
+                    <span style={{ fontSize: 9, color: "#94A3B8" }}>{d.date}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
