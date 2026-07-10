@@ -7,7 +7,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (isAuthError(session)) return session;
   const { id } = await params;
   const body = await req.json();
-  const reservation = await (prisma as any).reservation.update({
+  const reservation = await prisma.reservation.update({
     where: { id },
     data: { status: body.status, notes: body.notes, tableId: body.tableId },
     include: { table: true },
@@ -19,6 +19,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
   const { id } = await params;
-  await (prisma as any).reservation.delete({ where: { id } });
+  await prisma.reservation.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }

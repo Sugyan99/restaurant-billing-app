@@ -194,3 +194,35 @@ model Settings {
   currency       String  @default("INR")
   openingCash    Float   @default(0)
 }
+
+model InventoryItem {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  unit         String   @default("kg")
+  currentStock Float    @default(0)
+  minStock     Float    @default(1)
+  costPerUnit  Float    @default(0)
+  updatedAt    DateTime @updatedAt
+}
+
+model Discount {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   @default("PERCENT")
+  value     Float
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Reservation {
+  id            String           @id @default(cuid())
+  customerName  String
+  customerPhone String
+  partySize     Int              @default(2)
+  date          DateTime
+  tableId       String?
+  table         RestaurantTable? @relation(fields: [tableId], references: [id])
+  status        String           @default("CONFIRMED")
+  notes         String?
+  createdAt     DateTime         @default(now())
+}

@@ -9,7 +9,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const body = await req.json();
 
-  const item = await (prisma as any).inventoryItem.update({
+  const item = await prisma.inventoryItem.update({
     where: { id },
     data: {
       name: body.name,
@@ -28,6 +28,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (isAuthError(session)) return session;
 
   const { id } = await params;
-  await (prisma as any).inventoryItem.delete({ where: { id } });
+  await prisma.inventoryItem.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }

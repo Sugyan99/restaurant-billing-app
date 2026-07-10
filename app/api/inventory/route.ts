@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
-  const items = await (prisma as any).inventoryItem.findMany({ orderBy: { name: "asc" } });
+  const items = await prisma.inventoryItem.findMany({ orderBy: { name: "asc" } });
   const lowStock = items.filter((i: any) => i.currentStock <= i.minStock);
   return NextResponse.json({ items, lowStock });
 }
@@ -28,6 +28,6 @@ export async function POST(req: NextRequest) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
 
-  const item = await (prisma as any).inventoryItem.create({ data: { ...parsed.data, id: `inv_${Date.now()}` } });
+  const item = await prisma.inventoryItem.create({ data: { ...parsed.data, id: `inv_${Date.now()}` } });
   return NextResponse.json({ item }, { status: 201 });
 }

@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const date = searchParams.get("date") ?? new Date().toISOString().split("T")[0];
   const start = new Date(`${date}T00:00:00.000Z`);
   const end = new Date(`${date}T23:59:59.999Z`);
-  const reservations = await (prisma as any).reservation.findMany({
+  const reservations = await prisma.reservation.findMany({
     where: { date: { gte: start, lte: end } },
     include: { table: true },
     orderBy: { date: "asc" },
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   if (!body.customerName || !body.customerPhone || !body.date) {
     return NextResponse.json({ error: "Name, phone and date are required" }, { status: 400 });
   }
-  const reservation = await (prisma as any).reservation.create({
+  const reservation = await prisma.reservation.create({
     data: {
       id: `res_${Date.now()}`,
       customerName: body.customerName,
