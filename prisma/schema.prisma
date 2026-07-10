@@ -1,15 +1,10 @@
-// Restaurant Billing System - Database Schema
-// NOTE: Each restaurant client gets their OWN database (multi-tenant via separate DBs,
-// not shared-table tenancy). Same schema is deployed per client with a different
-// DATABASE_URL in their .env file.
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url       = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -52,24 +47,33 @@ enum PaymentStatus {
   PARTIALLY_PAID
 }
 
+enum ExpenseCategory {
+  INGREDIENTS
+  UTILITIES
+  SALARIES
+  MAINTENANCE
+  MARKETING
+  OTHER
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
   email        String   @unique
   passwordHash String
   role         Role     @default(CASHIER)
+  phone        String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
-
   ordersCreated Order[] @relation("OrderCreatedBy")
 }
 
 model RestaurantTable {
-  id        String      @id @default(cuid())
-  number    String      @unique
-  capacity  Int         @default(4)
-  status    TableStatus @default(FREE)
-  orders    Order[]
+  id       String      @id @default(cuid())
+  number   String      @unique
+  capacity Int         @default(4)
+  status   TableStatus @default(FREE)
+  orders   Order[]
 }
 
 model Category {
@@ -92,21 +96,35 @@ model MenuItem {
   createdAt   DateTime    @default(now())
 }
 
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  email     String?
+  address   String?
+  totalVisits Int    @default(0)
+  totalSpent  Float  @default(0)
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
 model Order {
-  id           String      @id @default(cuid())
-  orderNumber  Int         @unique @default(autoincrement())
-  type         OrderType   @default(DINE_IN)
-  status       OrderStatus @default(PENDING)
-  tableId      String?
-  table        RestaurantTable?   @relation(fields: [tableId], references: [id])
+  id            String          @id @default(cuid())
+  orderNumber   Int             @unique @default(autoincrement())
+  type          OrderType       @default(DINE_IN)
+  status        OrderStatus     @default(PENDING)
+  tableId       String?
+  table         RestaurantTable? @relation(fields: [tableId], references: [id])
+  customerId    String?
+  customer      Customer?       @relation(fields: [customerId], references: [id])
   customerName  String?
   customerPhone String?
-  items        OrderItem[]
-  bill         Bill?
-  createdById  String
-  createdBy    User        @relation("OrderCreatedBy", fields: [createdById], references: [id])
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  items         OrderItem[]
+  bill          Bill?
+  createdById   String
+  createdBy     User            @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 }
 
 model OrderItem {
@@ -116,7 +134,7 @@ model OrderItem {
   menuItemId String
   menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
   quantity   Int      @default(1)
-  price      Float // price at time of order (snapshot, in case menu price changes later)
+  price      Float
   notes      String?
 }
 
@@ -135,12 +153,44 @@ model Bill {
   createdAt     DateTime      @default(now())
 }
 
+model Expense {
+  id          String          @id @default(cuid())
+  description String
+  amount      Float
+  category    ExpenseCategory @default(OTHER)
+  date        DateTime        @default(now())
+  addedById   String
+  createdAt   DateTime        @default(now())
+}
+
+model DayClose {
+  id              String   @id @default(cuid())
+  date            DateTime @unique
+  openingCash     Float    @default(0)
+  closingCash     Float    @default(0)
+  totalSales      Float    @default(0)
+  totalOrders     Int      @default(0)
+  totalExpenses   Float    @default(0)
+  netProfit       Float    @default(0)
+  cashSales       Float    @default(0)
+  upiSales        Float    @default(0)
+  cardSales       Float    @default(0)
+  creditSales     Float    @default(0)
+  notes           String?
+  closedById      String
+  createdAt       DateTime @default(now())
+}
+
 model Settings {
-  id            String  @id @default(cuid())
+  id             String  @id @default(cuid())
   restaurantName String  @default("My Restaurant")
-  address       String?
-  gstNumber     String?
-  cgstPercent   Float   @default(2.5)
-  sgstPercent   Float   @default(2.5)
-  phone         String?
+  address        String?
+  gstNumber      String?
+  cgstPercent    Float   @default(2.5)
+  sgstPercent    Float   @default(2.5)
+  phone          String?
+  email          String?
+  website        String?
+  currency       String  @default("INR")
+  openingCash    Float   @default(0)
 }

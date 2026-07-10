@@ -4,12 +4,18 @@ import { usePathname, useRouter } from "next/navigation";
 import { ToastContainer } from "@/components/Toast";
 import { AIAssistant } from "@/components/AIAssistant";
 
-const NAV = [
+const NAV_MAIN = [
   { href: "/dashboard/tables", icon: "🪑", label: "Tables & Orders" },
   { href: "/dashboard/orders", icon: "📋", label: "All Orders" },
   { href: "/dashboard/bills", icon: "🧾", label: "Bills" },
+];
+const NAV_MANAGE = [
   { href: "/dashboard/menu", icon: "🍽️", label: "Menu" },
+  { href: "/dashboard/customers", icon: "👤", label: "Customers" },
+  { href: "/dashboard/expenses", icon: "💰", label: "Expenses" },
+  { href: "/dashboard/day-close", icon: "🔒", label: "Day Close" },
   { href: "/dashboard/reports", icon: "📊", label: "Reports" },
+  { href: "/dashboard/users", icon: "👥", label: "Staff" },
   { href: "/dashboard/settings", icon: "⚙️", label: "Settings" },
 ];
 
@@ -34,23 +40,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
         <nav className="sidebar-nav">
           <div className="nav-section">Main</div>
-          {NAV.slice(0, 3).map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}
-            >
+          {NAV_MAIN.map((item) => (
+            <Link key={item.href} href={item.href}
+              className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}>
               <span>{item.icon}</span>
               <span>{item.label}</span>
             </Link>
           ))}
           <div className="nav-section">Management</div>
-          {NAV.slice(3).map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}
-            >
+          {NAV_MANAGE.map((item) => (
+            <Link key={item.href} href={item.href}
+              className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}>
               <span>{item.icon}</span>
               <span>{item.label}</span>
             </Link>

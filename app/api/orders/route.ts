@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status");
 
   const orders = await prisma.order.findMany({
-    where: status ? { status: status as any } : {},
+    where: status ? { status: status as "PENDING" | "PREPARING" | "READY" | "SERVED" | "CANCELLED" } : {},
     include: {
       items: { include: { menuItem: true } },
       table: true,
