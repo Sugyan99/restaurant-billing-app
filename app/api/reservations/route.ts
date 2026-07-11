@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       customerPhone: body.customerPhone,
       partySize: body.partySize ?? 2,
       date: new Date(body.date),
-      tableId: body.tableId ?? null,
+      tableId: body.tableId || null,
       notes: body.notes ?? null,
       status: "CONFIRMED",
     },
