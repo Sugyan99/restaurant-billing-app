@@ -69,11 +69,12 @@ model User {
 }
 
 model RestaurantTable {
-  id       String      @id @default(cuid())
-  number   String      @unique
-  capacity Int         @default(4)
-  status   TableStatus @default(FREE)
-  orders   Order[]
+  id           String        @id @default(cuid())
+  number       String        @unique
+  capacity     Int           @default(4)
+  status       TableStatus   @default(FREE)
+  orders       Order[]
+  reservations Reservation[]
 }
 
 model Category {
