@@ -120,7 +120,7 @@ export default function OrdersPage() {
               <div key={order.id} style={{
                 background: statusColor[order.status] ?? "white",
                 border: `2px solid ${statusBorder[order.status] ?? "#E2E8F0"}`,
-                borderRadius: 12, overflow: "hidden"
+                borderRadius: 12, overflow: "hidden", boxShadow: orderAge > 20 ? "0 0 0 3px rgba(220,38,38,0.25)" : "none"
               }}>
                 {/* Card Header */}
                 <div style={{ padding: "12px 14px", background: "rgba(0,0,0,0.04)", borderBottom: `1px solid ${statusBorder[order.status]}` }}>
