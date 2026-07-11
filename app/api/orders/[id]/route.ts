@@ -20,10 +20,7 @@ export async function GET(
     },
   });
 
-  if (!order) {
-    return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  }
-
+  if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   return NextResponse.json({ order });
 }
 
@@ -50,12 +47,8 @@ export async function PUT(
       include: { table: true, items: { include: { menuItem: true } }, bill: true },
     });
 
-    // When order is served or cancelled, free up the table
-    if (
-      updated.tableId &&
-      (status === "SERVED" || status === "CANCELLED")
-    ) {
-      // Check if this table has any other active orders before freeing it
+    // Free table when served/cancelled
+    if (updated.tableId && (status === "SERVED" || status === "CANCELLED")) {
       const activeOrdersOnTable = await tx.order.count({
         where: {
           tableId: updated.tableId,
@@ -63,13 +56,30 @@ export async function PUT(
           id: { not: id },
         },
       });
-
       if (activeOrdersOnTable === 0) {
         await tx.restaurantTable.update({
           where: { id: updated.tableId },
           data: { status: "FREE" },
         });
       }
+    }
+
+    // Auto-create bill if order is SERVED and no bill exists yet
+    if (status === "SERVED" && !updated.bill) {
+      const settings = await tx.settings.findFirst();
+      const cgstPercent = settings?.cgstPercent ?? 2.5;
+      const sgstPercent = settings?.sgstPercent ?? 2.5;
+
+      const subtotal = updated.items.reduce(
+        (sum, item) => sum + item.price * item.quantity, 0
+      );
+      const cgst = parseFloat(((subtotal * cgstPercent) / 100).toFixed(2));
+      const sgst = parseFloat(((subtotal * sgstPercent) / 100).toFixed(2));
+      const total = parseFloat((subtotal + cgst + sgst).toFixed(2));
+
+      await tx.bill.create({
+        data: { orderId: id, subtotal, cgst, sgst, discount: 0, total },
+      });
     }
 
     return updated;
