@@ -71,6 +71,17 @@ export async function POST(
       }
     }
 
+    // Auto-update customer stats if order has a phone number
+    if (paid.order.customerPhone) {
+      await tx.customer.updateMany({
+        where: { phone: paid.order.customerPhone },
+        data: {
+          totalVisits: { increment: 1 },
+          totalSpent: { increment: paid.total },
+        },
+      });
+    }
+
     return paid;
   });
 

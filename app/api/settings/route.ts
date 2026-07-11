@@ -40,6 +40,8 @@ export async function PUT(req: NextRequest) {
         website: body.website,
         currency: body.currency,
         openingCash: body.openingCash,
+        receiptHeader: body.receiptHeader,
+        receiptFooter: body.receiptFooter,
       },
     });
   }

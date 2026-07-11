@@ -100,6 +100,16 @@ export default function SettingsPage() {
           <div className="card-header"><h3 className="card-title">Cash Drawer</h3></div>
           <div className="card-body">
             <div className="form-group">
+              <label className="form-label">Receipt Header Message</label>
+              <input className="form-input" placeholder="Thank you for your visit!" value={settings.receiptHeader ?? ""}
+                onChange={e => setSettings({ ...settings, receiptHeader: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Receipt Footer Message</label>
+              <input className="form-input" placeholder="Visit us again soon!" value={settings.receiptFooter ?? ""}
+                onChange={e => setSettings({ ...settings, receiptFooter: e.target.value })} />
+            </div>
+            <div className="form-group">
               <label className="form-label">Opening Cash (₹)</label>
               <input className="form-input" type="number" step="0.01" value={settings.openingCash}
                 onChange={e => setSettings({ ...settings, openingCash: parseFloat(e.target.value) })} />

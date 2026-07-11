@@ -151,6 +151,15 @@ export default function BillsPage() {
                     <td style={{ padding: "12px 16px" }}>
                       <div style={{ display: "flex", gap: 6 }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => printBill(bill)}>🖨️ Print</button>
+                        <button className="btn btn-success btn-sm" onClick={() => {
+                          const items = bill.order.items.map(i => `${i.menuItem.name} x${i.quantity}`).join(", ");
+                          const msg = `*Bill #${bill.billNumber}*
+${bill.order.table ? "Table: " + bill.order.table.number : bill.order.type}
+Items: ${items}
+*Total: ₹${bill.total.toFixed(2)}*
+Thank you for dining with us!`;
+                          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                        }}>📱 WhatsApp</button>
                         {bill.paymentStatus === "PENDING" && (
                           <button className="btn btn-success btn-sm" onClick={() => setSelectedBill(bill)}>💳 Pay</button>
                         )}

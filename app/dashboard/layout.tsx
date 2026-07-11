@@ -23,6 +23,7 @@ const NAV_MANAGE = [
 const NAV_REPORTS = [
   { href: "/dashboard/reports", icon: "📊", label: "Sales Reports" },
   { href: "/dashboard/gst-report", icon: "🧾", label: "GST Report" },
+  { href: "/dashboard/staff-report", icon: "👨‍💼", label: "Staff Performance" },
 ];
 const NAV_ADMIN = [
   { href: "/dashboard/users", icon: "👥", label: "Staff" },
@@ -32,11 +33,27 @@ const NAV_ADMIN = [
 const allNav = [...NAV_MAIN, ...NAV_MANAGE, ...NAV_REPORTS, ...NAV_ADMIN];
 
 type User = { name: string; role: string };
+type SearchResult = { type: string; label: string; sub: string; id: string };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (query.length < 2) { setResults([]); return; }
+    const t = setTimeout(async () => {
+      setSearching(true);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      const d = await res.json();
+      setResults(d.results ?? []);
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => { if (d.user) setUser(d.user); });
@@ -106,8 +123,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="topbar-title">{currentPage?.icon} {currentPage?.label ?? "Dashboard"}</span>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            {/* Global Search */}
+            <div style={{ position: "relative" }}>
+              <input value={query} onChange={e => setQuery(e.target.value)}
+                placeholder="🔍 Search..." onBlur={() => setTimeout(() => setQuery(""), 200)}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, width: 200, outline: "none" }} />
+              {results.length > 0 && (
+                <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "white", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 300, zIndex: 999 }}>
+                  {results.map((r, i) => (
+                    <div key={i} style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9", cursor: "pointer" }}
+                      onMouseDown={() => setQuery("")}>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{r.label}</div>
+                      <div style={{ fontSize: 11, color: "#64748B" }}>{r.type} · {r.sub}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <span style={{ fontSize: 12, color: "#94A3B8" }}>
-              {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+              {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
             </span>
             {user && (
               <div style={{ background: "#FFF0E5", border: "1px solid #FDBA74", borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 700, color: "#E8721C" }}>
