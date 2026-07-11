@@ -66,25 +66,19 @@ export default function HomePage() {
 
       {/* Quick Stats */}
       <div className="stats-grid" style={{ marginBottom: 20 }}>
-        <div className="stat-card" style={{ borderLeft: "4px solid #16A34A" }}>
-          <div className="stat-label">Today's Revenue</div>
-          <div className="stat-value" style={{ color: "#16A34A" }}>₹{stats?.totalRevenue.toFixed(0) ?? "—"}</div>
-          <div className="stat-sub">{stats?.totalOrders ?? 0} orders paid</div>
-        </div>
-        <div className="stat-card" style={{ borderLeft: "4px solid #E8721C" }}>
-          <div className="stat-label">Pending Orders</div>
-          <div className="stat-value" style={{ color: "#E8721C" }}>{orders.length}</div>
-          <div className="stat-sub">waiting in kitchen</div>
-        </div>
-        <div className="stat-card" style={{ borderLeft: "4px solid #2563EB" }}>
-          <div className="stat-label">Tables</div>
-          <div className="stat-value">{freeTables}<span style={{ fontSize: 14, color: "#64748B" }}>/{tables.length}</span></div>
-          <div className="stat-sub">{occupiedTables} occupied</div>
-        </div>
-        <div className="stat-card" style={{ borderLeft: "4px solid #7C3AED" }}>
-          <div className="stat-label">Avg Order Value</div>
-          <div className="stat-value" style={{ fontSize: 22 }}>₹{stats?.avgOrderValue.toFixed(0) ?? "—"}</div>
-        </div>
+        {[
+          { label: "Today's Revenue", value: `₹${stats?.totalRevenue.toFixed(0) ?? "—"}`, sub: `${stats?.totalOrders ?? 0} orders paid`, color: "#16A34A", icon: "💰", bg: "#F0FDF4" },
+          { label: "Pending Orders", value: orders.length, sub: "in kitchen queue", color: "#E8721C", icon: "🍳", bg: "#FFF7ED" },
+          { label: "Free Tables", value: `${freeTables}/${tables.length}`, sub: `${occupiedTables} occupied`, color: "#2563EB", icon: "🪑", bg: "#EFF6FF" },
+          { label: "Avg Order Value", value: `₹${stats?.avgOrderValue.toFixed(0) ?? "—"}`, sub: "per transaction", color: "#7C3AED", icon: "📊", bg: "#F5F3FF" },
+        ].map(s => (
+          <div key={s.label} className="stat-card" style={{ borderTop: `3px solid ${s.color}`, position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 12, right: 16, fontSize: 24, opacity: 0.15 }}>{s.icon}</div>
+            <div className="stat-label">{s.label}</div>
+            <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
+            <div className="stat-sub">{s.sub}</div>
+          </div>
+        ))}
       </div>
 
       {/* Quick Actions */}

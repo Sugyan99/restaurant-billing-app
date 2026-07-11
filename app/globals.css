@@ -249,3 +249,80 @@ body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: var(-
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .order-panel { grid-template-columns: 1fr; }
 }
+
+/* ── UI/UX Improvements ── */
+
+/* Sidebar scrollable + compact */
+.sidebar-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+.nav-section { font-size: 9px; font-weight: 800; color: #3A4A62; padding: 12px 16px 3px; letter-spacing: 1.5px; text-transform: uppercase; }
+.nav-item { padding: 8px 16px; font-size: 12.5px; gap: 9px; border-left-width: 3px; }
+.nav-item:hover { background: #1E2D42; }
+
+/* Page loading skeleton */
+.skeleton { background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Better cards */
+.card { box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: box-shadow 0.2s; }
+.card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.07); }
+.stat-card { transition: transform 0.15s, box-shadow 0.15s; }
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
+
+/* Better table cards */
+.table-card { position: relative; }
+.table-card.free:hover { border-color: #16A34A; }
+.table-card.occupied:hover { border-color: #D97706; }
+.table-card .table-num { font-size: 28px; margin: 6px 0 2px; }
+
+/* Improved buttons */
+.btn { border-radius: 8px; font-size: 13px; transition: all 0.15s; letter-spacing: 0.1px; }
+.btn:active { transform: scale(0.97); }
+.btn-primary { box-shadow: 0 2px 6px rgba(232,114,28,0.3); }
+.btn-primary:hover { box-shadow: 0 4px 12px rgba(232,114,28,0.4); transform: translateY(-1px); }
+
+/* Form inputs */
+.form-input:focus, .form-select:focus { box-shadow: 0 0 0 3px rgba(232,114,28,0.15); border-color: #E8721C; }
+
+/* Modal improved */
+.modal { box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: modalIn 0.2s ease; }
+.modal-overlay { animation: fadeIn 0.15s ease; backdrop-filter: blur(2px); }
+@keyframes modalIn { from { transform: translateY(10px) scale(0.98); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Topbar improved */
+.topbar { box-shadow: 0 1px 0 #E2E8F0; }
+.topbar-title { font-size: 15px; }
+
+/* Table in cards */
+table th { background: #F8FAFC; }
+table tr:last-child td { border-bottom: none; }
+table tbody tr:hover { background: #FAFBFF !important; }
+
+/* Badge polish */
+.badge { font-size: 10.5px; padding: 2px 9px; letter-spacing: 0.3px; }
+
+/* Mobile improvements */
+@media (max-width: 768px) {
+  .sidebar { width: 56px; }
+  .main-content { margin-left: 56px; }
+  .sidebar-logo p, .nav-section, .nav-item span:last-child { display: none; }
+  .sidebar-logo h1 { font-size: 16px; }
+  .page-body { padding: 16px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
+  .topbar { padding: 0 16px; }
+  .modal { width: 96% !important; max-height: 95vh; }
+  .order-panel { grid-template-columns: 1fr !important; }
+}
+
+/* Print improvements */
+@media print {
+  .sidebar, .topbar, .no-print, .btn { display: none !important; }
+  .main-content { margin-left: 0 !important; }
+  .card { box-shadow: none; border: 1px solid #ddd; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }

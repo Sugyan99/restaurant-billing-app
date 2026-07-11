@@ -1,85 +1,119 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ToastContainer } from "@/components/Toast";
 import { AIAssistant } from "@/components/AIAssistant";
 
 const NAV_MAIN = [
   { href: "/dashboard/home", icon: "🏠", label: "Dashboard" },
-  { href: "/dashboard/tables", icon: "🪑", label: "Tables & Orders" },
-  { href: "/dashboard/orders", icon: "📋", label: "All Orders" },
-  { href: "/dashboard/bills", icon: "🧾", label: "Bills" },
+  { href: "/dashboard/tables", icon: "🪑", label: "Tables & POS" },
+  { href: "/dashboard/orders", icon: "🍳", label: "Kitchen / KOT" },
+  { href: "/dashboard/bills", icon: "🧾", label: "Bills & Payments" },
 ];
 const NAV_MANAGE = [
   { href: "/dashboard/menu", icon: "🍽️", label: "Menu" },
   { href: "/dashboard/inventory", icon: "📦", label: "Inventory" },
+  { href: "/dashboard/reservations", icon: "📅", label: "Reservations" },
   { href: "/dashboard/customers", icon: "👤", label: "Customers" },
+  { href: "/dashboard/discounts", icon: "🏷️", label: "Discounts" },
   { href: "/dashboard/expenses", icon: "💰", label: "Expenses" },
   { href: "/dashboard/day-close", icon: "🔒", label: "Day Close" },
-  { href: "/dashboard/reports", icon: "📊", label: "Reports" },
+];
+const NAV_REPORTS = [
+  { href: "/dashboard/reports", icon: "📊", label: "Sales Reports" },
   { href: "/dashboard/gst-report", icon: "🧾", label: "GST Report" },
-  { href: "/dashboard/reservations", icon: "📅", label: "Reservations" },
-  { href: "/dashboard/discounts", icon: "🏷️", label: "Discounts" },
+];
+const NAV_ADMIN = [
   { href: "/dashboard/users", icon: "👥", label: "Staff" },
   { href: "/dashboard/settings", icon: "⚙️", label: "Settings" },
 ];
 
+const allNav = [...NAV_MAIN, ...NAV_MANAGE, ...NAV_REPORTS, ...NAV_ADMIN];
+
+type User = { name: string; role: string };
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.json()).then(d => { if (d.user) setUser(d.user); });
+  }, []);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
   }
 
-  const allNav = [...NAV_MAIN, ...NAV_MANAGE];
-  const currentPage = allNav.find((n) => pathname.startsWith(n.href));
+  const currentPage = allNav.find(n => pathname.startsWith(n.href));
+
+  function NavSection({ title, items }: { title: string; items: typeof NAV_MAIN }) {
+    return (
+      <>
+        <div className="nav-section">{title}</div>
+        {items.map(item => (
+          <Link key={item.href} href={item.href}
+            className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}>
+            <span style={{ fontSize: 15 }}>{item.icon}</span>
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </>
+    );
+  }
 
   return (
     <div>
-      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
           <h1>🍽️ RestoBill</h1>
-          <p>Billing System</p>
+          <p>Restaurant POS</p>
         </div>
         <nav className="sidebar-nav">
-          <div className="nav-section">Main</div>
-          {NAV_MAIN.map((item) => (
-            <Link key={item.href} href={item.href}
-              className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}>
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          ))}
-          <div className="nav-section">Management</div>
-          {NAV_MANAGE.map((item) => (
-            <Link key={item.href} href={item.href}
-              className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}>
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          ))}
+          <NavSection title="Operations" items={NAV_MAIN} />
+          <NavSection title="Management" items={NAV_MANAGE} />
+          <NavSection title="Analytics" items={NAV_REPORTS} />
+          <NavSection title="Admin" items={NAV_ADMIN} />
         </nav>
-        <button
-          onClick={logout}
-          className="nav-item"
-          style={{ background: "none", border: "none", width: "100%", cursor: "pointer", color: "#94A3B8", marginBottom: 12, textAlign: "left" as const }}
-        >
-          <span>🚪</span>
-          <span>Logout</span>
-        </button>
+
+        {/* User info + logout */}
+        <div style={{ borderTop: "1px solid #1E2D42", padding: "12px 16px" }}>
+          {user && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#CBD5E1" }}>{user.name}</div>
+              <div style={{ fontSize: 10, color: "#3A4A62", fontWeight: 600 }}>{user.role}</div>
+            </div>
+          )}
+          <button onClick={logout} style={{
+            background: "#1E2D42", border: "none", width: "100%", cursor: "pointer",
+            color: "#94A3B8", fontSize: 12, padding: "7px 0", borderRadius: 6,
+            display: "flex", alignItems: "center", gap: 8, justifyContent: "center",
+            transition: "all 0.15s"
+          }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#DC2626"}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "#1E2D42"}
+          >
+            <span>🚪</span><span>Logout</span>
+          </button>
+        </div>
       </aside>
 
-      {/* Main content */}
       <main className="main-content">
         <div className="topbar">
-          <span className="topbar-title">{currentPage?.label ?? "Dashboard"}</span>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span style={{ fontSize: 13, color: "#64748B" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="topbar-title">{currentPage?.icon} {currentPage?.label ?? "Dashboard"}</span>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "#94A3B8" }}>
               {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
             </span>
+            {user && (
+              <div style={{ background: "#FFF0E5", border: "1px solid #FDBA74", borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 700, color: "#E8721C" }}>
+                {user.role}
+              </div>
+            )}
           </div>
         </div>
         <div className="page-body">{children}</div>
