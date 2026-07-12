@@ -11,12 +11,22 @@ const schema = z.object({
   costPerUnit: z.number().min(0),
 });
 
+type InventoryItem = {
+  id: string;
+  name: string;
+  unit: string;
+  currentStock: number;
+  minStock: number;
+  costPerUnit: number;
+  updatedAt: Date;
+};
+
 export async function GET(req: NextRequest) {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
-  const items = await prisma.inventoryItem.findMany({ orderBy: { name: "asc" } });
-  const lowStock = items.filter((i: any) => i.currentStock <= i.minStock);
+  const items = await prisma.inventoryItem.findMany({ orderBy: { name: "asc" } }) as InventoryItem[];
+  const lowStock = items.filter((i: InventoryItem) => i.currentStock <= i.minStock);
   return NextResponse.json({ items, lowStock });
 }
 
