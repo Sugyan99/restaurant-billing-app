@@ -1,19 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 
-// Note: Full JWT verification (with the secret) happens in API routes / server
-// components, since the `jsonwebtoken` library needs Node's crypto module which
-// isn't available in Next.js Edge Middleware. Here we just check the cookie
-// exists, as a fast first line of defense before the page even loads.
-export function proxy(req: NextRequest) {
-  const token = req.cookies.get("token")?.value;
+// jose is used instead of jsonwebtoken because Next.js Edge Runtime
+// does not support Node.js crypto — jose is fully Web Crypto compatible.
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET ?? "fallback-secret-change-in-production"
+);
+
+export async function proxy(req: NextRequest) {
   const isOnDashboard = req.nextUrl.pathname.startsWith("/dashboard");
+  if (!isOnDashboard) return NextResponse.next();
 
-  if (isOnDashboard && !token) {
-    const loginUrl = new URL("/login", req.url);
-    return NextResponse.redirect(loginUrl);
+  const token = req.cookies.get("token")?.value;
+
+  // No cookie → redirect to login
+  if (!token) {
+    return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  return NextResponse.next();
+  // Verify JWT signature + expiry
+  try {
+    await jwtVerify(token, JWT_SECRET);
+    return NextResponse.next();
+  } catch {
+    // Token expired or tampered — clear cookie + redirect
+    const res = NextResponse.redirect(new URL("/login", req.url));
+    res.cookies.set("token", "", { maxAge: 0, path: "/" });
+    return res;
+  }
 }
 
 export const config = {
