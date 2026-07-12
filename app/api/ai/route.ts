@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
@@ -91,7 +92,7 @@ Answer only about restaurant operations, sales, menu, billing topics. Always res
     const answer = await callGroq(systemPrompt, query);
     return NextResponse.json({ answer });
   } catch (err: any) {
-    console.error("Groq error:", err);
+    logger.error("ai/groq", err);
     return NextResponse.json(
       { error: "AI assistant is unavailable right now. Check GROQ_API_KEY in your .env" },
       { status: 500 }

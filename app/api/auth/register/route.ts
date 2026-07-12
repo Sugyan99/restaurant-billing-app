@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyToken } from "@/lib/auth";
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    console.error("Register error:", err);
+    logger.error("auth/register", err);
     return NextResponse.json(
       { error: "Something went wrong. Please try again." },
       { status: 500 }
