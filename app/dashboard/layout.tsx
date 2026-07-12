@@ -24,6 +24,7 @@ const NAV_REPORTS = [
   { href: "/dashboard/reports", icon: "📊", label: "Sales Reports" },
   { href: "/dashboard/gst-report", icon: "🧾", label: "GST Report" },
   { href: "/dashboard/staff-report", icon: "👨‍💼", label: "Staff Performance" },
+  { href: "/dashboard/pnl", icon: "💹", label: "P&L Statement" },
 ];
 const NAV_ADMIN = [
   { href: "/dashboard/users", icon: "👥", label: "Staff" },

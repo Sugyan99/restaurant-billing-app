@@ -17,6 +17,9 @@ export default function BillsPage() {
   const [bills, setBills] = useState<Bill[]>([]);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [payMode, setPayMode] = useState<"CASH" | "UPI" | "CARD" | "CREDIT">("CASH");
+  const [splitMode, setSplitMode] = useState(false);
+  const [splitCash, setSplitCash] = useState("");
+  const [splitUPI, setSplitUPI] = useState("");
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<"all" | "PENDING" | "PAID">("all");
 
@@ -31,20 +34,31 @@ export default function BillsPage() {
   async function markPaid(bill: Bill) {
     setLoading(true);
     try {
-      const res = await fetch(`/api/bills/${bill.id}/pay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentMode: payMode }),
-      });
+      let res;
+      if (splitMode && splitCash && splitUPI) {
+        const cash = parseFloat(splitCash);
+        const upi = parseFloat(splitUPI);
+        if (Math.abs(cash + upi - bill.total) > 0.01) {
+          showToast(`Split amounts must equal ₹${bill.total.toFixed(2)}`, "error");
+          setLoading(false); return;
+        }
+        res = await fetch(`/api/bills/${bill.id}/split`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ payments: [{ mode: "CASH", amount: cash }, { mode: "UPI", amount: upi }] }),
+        });
+      } else {
+        res = await fetch(`/api/bills/${bill.id}/pay`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paymentMode: payMode }),
+        });
+      }
       if (!res.ok) throw new Error((await res.json()).error);
       showToast(`Bill #${bill.billNumber} marked as paid!`);
-      setSelectedBill(null);
+      setSelectedBill(null); setSplitMode(false); setSplitCash(""); setSplitUPI("");
       await loadBills();
-    } catch (err: any) {
-      showToast(err.message ?? "Payment failed", "error");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Payment failed", "error");
+    } finally { setLoading(false); }
   }
 
   function printBill(bill: Bill) {
@@ -198,6 +212,28 @@ Thank you for dining with us!`;
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Split payment toggle */}
+            <div style={{ margin: "12px 0 0" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                <input type="checkbox" checked={splitMode} onChange={e => setSplitMode(e.target.checked)} />
+                Split Payment (Cash + UPI)
+              </label>
+              {splitMode && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+                  <div>
+                    <label className="form-label">💵 Cash (₹)</label>
+                    <input className="form-input" type="number" placeholder="0.00" value={splitCash}
+                      onChange={e => { setSplitCash(e.target.value); setSplitUPI((selectedBill!.total - parseFloat(e.target.value || "0")).toFixed(2)); }} />
+                  </div>
+                  <div>
+                    <label className="form-label">📱 UPI (₹)</label>
+                    <input className="form-input" type="number" placeholder="0.00" value={splitUPI}
+                      onChange={e => { setSplitUPI(e.target.value); setSplitCash((selectedBill!.total - parseFloat(e.target.value || "0")).toFixed(2)); }} />
+                  </div>
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
               <button className="btn btn-ghost" onClick={() => setSelectedBill(null)}>Cancel</button>

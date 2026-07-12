@@ -91,6 +91,7 @@ model MenuItem {
   price       Float
   isVeg       Boolean     @default(true)
   isAvailable Boolean     @default(true)
+  imageUrl    String?
   categoryId  String
   category    Category    @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
@@ -104,6 +105,9 @@ model Customer {
   email     String?
   address   String?
   totalVisits Int    @default(0)
+  totalSpent    Float  @default(0)
+  creditBalance Float  @default(0)
+  notes         String?
   totalSpent  Float  @default(0)
   createdAt DateTime @default(now())
   orders    Order[]
@@ -150,6 +154,7 @@ model Bill {
   discount      Float         @default(0)
   total         Float
   paymentMode   PaymentMode?
+  splitPayments Json?
   paymentStatus PaymentStatus @default(PENDING)
   createdAt     DateTime      @default(now())
 }
