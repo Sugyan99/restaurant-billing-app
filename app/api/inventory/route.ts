@@ -1,3 +1,4 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
@@ -22,15 +23,18 @@ type InventoryItem = {
 };
 
 export async function GET(req: NextRequest) {
+  return safeHandler("inventory/GET", async () => {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
   const items = await prisma.inventoryItem.findMany({ orderBy: { name: "asc" } }) as InventoryItem[];
   const lowStock = items.filter((i: InventoryItem) => i.currentStock <= i.minStock);
   return NextResponse.json({ items, lowStock });
+});
 }
 
 export async function POST(req: NextRequest) {
+  return safeHandler("inventory/POST", async () => {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
@@ -40,4 +44,5 @@ export async function POST(req: NextRequest) {
 
   const item = await prisma.inventoryItem.create({ data: { ...parsed.data, id: `inv_${Date.now()}` } });
   return NextResponse.json({ item }, { status: 201 });
+});
 }

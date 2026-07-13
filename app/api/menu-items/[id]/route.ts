@@ -1,10 +1,12 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+  return safeHandler("menu-items/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }
 ) {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
@@ -25,11 +27,13 @@ export async function PUT(
   });
 
   return NextResponse.json({ item });
+});
 }
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+  return safeHandler("menu-items/[id]/DELETE", async () => { params }: { params: Promise<{ id: string }> }
 ) {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
@@ -49,4 +53,5 @@ export async function DELETE(
 
   await prisma.menuItem.delete({ where: { id } });
   return NextResponse.json({ success: true });
+});
 }

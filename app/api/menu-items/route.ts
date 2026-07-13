@@ -1,3 +1,4 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
@@ -12,6 +13,7 @@ const menuItemSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  return safeHandler("menu-items/GET", async () => {
   const session = requireAuth(req);
   if (isAuthError(session)) return session;
 
@@ -29,9 +31,11 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json({ items });
+});
 }
 
 export async function POST(req: NextRequest) {
+  return safeHandler("menu-items/POST", async () => {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
@@ -46,4 +50,5 @@ export async function POST(req: NextRequest) {
 
   const item = await prisma.menuItem.create({ data: parsed.data });
   return NextResponse.json({ item }, { status: 201 });
+});
 }

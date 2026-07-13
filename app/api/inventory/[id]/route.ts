@@ -1,8 +1,10 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(req: NextRequest, {
+  return safeHandler("inventory/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }) {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
@@ -21,13 +23,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     },
   });
   return NextResponse.json({ item });
+});
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, {
+  return safeHandler("inventory/[id]/DELETE", async () => { params }: { params: Promise<{ id: string }> }) {
   const session = requireAuth(req, ["OWNER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
   await prisma.inventoryItem.delete({ where: { id } });
   return NextResponse.json({ success: true });
+});
 }

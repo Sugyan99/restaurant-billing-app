@@ -1,3 +1,4 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
@@ -9,6 +10,7 @@ const createBillSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  return safeHandler("bills/GET", async () => {
   const session = requireAuth(req);
   if (isAuthError(session)) return session;
 
@@ -38,9 +40,11 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json({ bills });
+});
 }
 
 export async function POST(req: NextRequest) {
+  return safeHandler("bills/POST", async () => {
   const session = requireAuth(req, ["OWNER", "MANAGER", "CASHIER"]);
   if (isAuthError(session)) return session;
 
@@ -93,4 +97,5 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ bill }, { status: 201 });
+});
 }

@@ -1,10 +1,12 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+  return safeHandler("orders/[id]/GET", async () => { params }: { params: Promise<{ id: string }> }
 ) {
   const session = requireAuth(req);
   if (isAuthError(session)) return session;
@@ -22,11 +24,13 @@ export async function GET(
 
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   return NextResponse.json({ order });
+});
 }
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+  return safeHandler("orders/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }
 ) {
   const session = requireAuth(req);
   if (isAuthError(session)) return session;
@@ -86,4 +90,5 @@ export async function PUT(
   });
 
   return NextResponse.json({ order });
+});
 }

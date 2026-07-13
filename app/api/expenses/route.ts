@@ -1,3 +1,4 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
@@ -11,6 +12,7 @@ const expenseSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  return safeHandler("expenses/GET", async () => {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
@@ -32,9 +34,11 @@ export async function GET(req: NextRequest) {
 
   const total = expenses.reduce((s, e) => s + e.amount, 0);
   return NextResponse.json({ expenses, total });
+});
 }
 
 export async function POST(req: NextRequest) {
+  return safeHandler("expenses/POST", async () => {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
@@ -55,4 +59,5 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ expense }, { status: 201 });
+});
 }

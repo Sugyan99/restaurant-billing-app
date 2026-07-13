@@ -1,9 +1,11 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 // Redeem loyalty points as discount (100 points = ₹10)
 export async function POST(req: NextRequest) {
+  return safeHandler("loyalty/POST", async () => {
   const session = requireAuth(req, ["OWNER", "MANAGER", "CASHIER"]);
   if (isAuthError(session)) return session;
 
@@ -24,4 +26,5 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ discount, remainingPoints: customer.loyaltyPoints - points });
+});
 }

@@ -1,8 +1,10 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(req: NextRequest) {
+  return safeHandler("staff-report/GET", async () => {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
@@ -31,4 +33,5 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({ stats: stats.sort((a, b) => b.revenue - a.revenue) });
+});
 }

@@ -1,8 +1,10 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(req: NextRequest) {
+  return safeHandler("sales-trend/GET", async () => {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
@@ -34,4 +36,5 @@ export async function GET(req: NextRequest) {
   const peakHour = Object.entries(hourly).sort((a, b) => b[1] - a[1])[0];
 
   return NextResponse.json({ daily: days, hourly, peakHour: peakHour ? { hour: peakHour[0], revenue: peakHour[1].toFixed(2) } : null });
+});
 }

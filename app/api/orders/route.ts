@@ -1,3 +1,4 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
@@ -18,6 +19,7 @@ const createOrderSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  return safeHandler("orders/GET", async () => {
   const session = requireAuth(req);
   if (isAuthError(session)) return session;
 
@@ -36,9 +38,11 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json({ orders });
+});
 }
 
 export async function POST(req: NextRequest) {
+  return safeHandler("orders/POST", async () => {
   const session = requireAuth(req);
   if (isAuthError(session)) return session;
 
@@ -114,4 +118,5 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ order }, { status: 201 });
+});
 }

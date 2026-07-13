@@ -1,10 +1,12 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+  return safeHandler("customers/[id]/GET", async () => { params }: { params: Promise<{ id: string }> }
 ) {
   const session = requireAuth(req);
   if (isAuthError(session)) return session;
@@ -24,11 +26,13 @@ export async function GET(
   });
 
   return NextResponse.json({ customer, orders });
+});
 }
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+  return safeHandler("customers/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }
 ) {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
@@ -41,8 +45,9 @@ export async function PUT(
       email: body.email || null,
       address: body.address || null,
       notes: body.notes || null,
-      creditBalance: body.creditBalance,
+      creditBalance: Math.max(0, body.creditBalance ?? 0),
     },
   });
   return NextResponse.json({ customer });
+});
 }

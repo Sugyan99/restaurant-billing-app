@@ -1,3 +1,4 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
@@ -14,7 +15,8 @@ const updateSchema = z.object({
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+  return safeHandler("users/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }
 ) {
   const session = requireAuth(req, ["OWNER"]);
   if (isAuthError(session)) return session;
@@ -44,11 +46,13 @@ export async function PUT(
   });
 
   return NextResponse.json({ user });
+});
 }
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+  return safeHandler("users/[id]/DELETE", async () => { params }: { params: Promise<{ id: string }> }
 ) {
   const session = requireAuth(req, ["OWNER"]);
   if (isAuthError(session)) return session;
@@ -67,4 +71,5 @@ export async function DELETE(
   });
 
   return NextResponse.json({ user, message: "User deactivated successfully" });
+});
 }

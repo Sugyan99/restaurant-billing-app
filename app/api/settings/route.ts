@@ -1,8 +1,10 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(req: NextRequest) {
+  return safeHandler("settings/GET", async () => {
   const session = requireAuth(req);
   if (isAuthError(session)) return session;
 
@@ -14,9 +16,11 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ settings });
+});
 }
 
 export async function PUT(req: NextRequest) {
+  return safeHandler("settings/PUT", async () => {
   const session = requireAuth(req, ["OWNER"]);
   if (isAuthError(session)) return session;
 
@@ -47,4 +51,5 @@ export async function PUT(req: NextRequest) {
   }
 
   return NextResponse.json({ settings });
+});
 }

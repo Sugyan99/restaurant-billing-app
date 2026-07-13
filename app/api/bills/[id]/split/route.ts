@@ -1,3 +1,4 @@
+import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
@@ -12,7 +13,8 @@ const splitSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+  return safeHandler("bills/[id]/split/POST", async () => { params }: { params: Promise<{ id: string }> }
 ) {
   const session = requireAuth(req, ["OWNER", "MANAGER", "CASHIER"]);
   if (isAuthError(session)) return session;
@@ -60,4 +62,5 @@ export async function POST(
   });
 
   return NextResponse.json({ bill: updated });
+});
 }
