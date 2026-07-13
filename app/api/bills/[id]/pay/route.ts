@@ -10,10 +10,10 @@ const paySchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  {
-  return safeHandler("bills/[id]/pay/POST", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER", "MANAGER", "CASHIER"]);
+  return safeHandler("bills/[id]/pay/POST", async () => {
+    const session = requireAuth(req, ["OWNER", "MANAGER", "CASHIER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
@@ -33,8 +33,9 @@ export async function POST(
   });
 
   if (!bill) {
-    return NextResponse.json({ error: "Bill not found" }, { status: 404 });
-  }
+    return NextResponse.json({ error: "Bill not found" }, { status: 404
+  });
+}
 
   if (bill.paymentStatus === "PAID") {
     return NextResponse.json({ error: "This bill is already paid" }, { status: 400 });

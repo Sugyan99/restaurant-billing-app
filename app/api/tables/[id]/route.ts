@@ -5,10 +5,10 @@ import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function PUT(
   req: NextRequest,
-  {
-  return safeHandler("tables/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER", "MANAGER"]);
+  return safeHandler("tables/[id]/PUT", async () => {
+    const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
@@ -23,16 +23,17 @@ export async function PUT(
     },
   });
 
-  return NextResponse.json({ table });
+  return NextResponse.json({ table
+  });
 });
 }
 
 export async function DELETE(
   req: NextRequest,
-  {
-  return safeHandler("tables/[id]/DELETE", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER", "MANAGER"]);
+  return safeHandler("tables/[id]/DELETE", async () => {
+    const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
@@ -49,6 +50,7 @@ export async function DELETE(
   }
 
   await prisma.restaurantTable.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true
+  });
 });
 }

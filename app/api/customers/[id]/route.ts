@@ -5,10 +5,10 @@ import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(
   req: NextRequest,
-  {
-  return safeHandler("customers/[id]/GET", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req);
+  return safeHandler("customers/[id]/GET", async () => {
+    const session = requireAuth(req);
   if (isAuthError(session)) return session;
   const { id } = await params;
 
@@ -25,16 +25,17 @@ export async function GET(
     take: 20,
   });
 
-  return NextResponse.json({ customer, orders });
+  return NextResponse.json({ customer, orders
+  });
 });
 }
 
 export async function PUT(
   req: NextRequest,
-  {
-  return safeHandler("customers/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER", "MANAGER"]);
+  return safeHandler("customers/[id]/PUT", async () => {
+    const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
   const { id } = await params;
   const body = await req.json();
@@ -48,6 +49,7 @@ export async function PUT(
       creditBalance: Math.max(0, body.creditBalance ?? 0),
     },
   });
-  return NextResponse.json({ customer });
+  return NextResponse.json({ customer
+  });
 });
 }

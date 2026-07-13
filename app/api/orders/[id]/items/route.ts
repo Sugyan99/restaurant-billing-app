@@ -18,18 +18,19 @@ const addItemsSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  {
-  return safeHandler("orders/[id]/items/POST", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req);
+  return safeHandler("orders/[id]/items/POST", async () => {
+    const session = requireAuth(req);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
 
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) {
-    return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  }
+    return NextResponse.json({ error: "Order not found" }, { status: 404
+  });
+}
   if (order.status === "SERVED" || order.status === "CANCELLED") {
     return NextResponse.json(
       { error: "Cannot add items to a completed or cancelled order" },

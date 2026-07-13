@@ -15,18 +15,19 @@ const updateSchema = z.object({
 
 export async function PUT(
   req: NextRequest,
-  {
-  return safeHandler("users/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER"]);
+  return safeHandler("users/[id]/PUT", async () => {
+    const session = requireAuth(req, ["OWNER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
   const body = await req.json();
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
-  }
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400
+  });
+}
 
   // Prevent owner from deactivating themselves
   if (id === session.userId && parsed.data.isActive === false) {
@@ -51,17 +52,18 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  {
-  return safeHandler("users/[id]/DELETE", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER"]);
+  return safeHandler("users/[id]/DELETE", async () => {
+    const session = requireAuth(req, ["OWNER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
 
   if (id === session.userId) {
-    return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400 });
-  }
+    return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400
+  });
+}
 
   // Soft delete — deactivate instead of hard delete to preserve order history
   const user = await prisma.user.update({

@@ -5,10 +5,10 @@ import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(
   req: NextRequest,
-  {
-  return safeHandler("orders/[id]/GET", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req);
+  return safeHandler("orders/[id]/GET", async () => {
+    const session = requireAuth(req);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
@@ -23,16 +23,17 @@ export async function GET(
   });
 
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  return NextResponse.json({ order });
+  return NextResponse.json({ order
+  });
 });
 }
 
 export async function PUT(
   req: NextRequest,
-  {
-  return safeHandler("orders/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req);
+  return safeHandler("orders/[id]/PUT", async () => {
+    const session = requireAuth(req);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
@@ -41,8 +42,9 @@ export async function PUT(
 
   const validStatuses = ["PENDING", "PREPARING", "READY", "SERVED", "CANCELLED"];
   if (!validStatuses.includes(status)) {
-    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-  }
+    return NextResponse.json({ error: "Invalid status" }, { status: 400
+  });
+}
 
   const order = await prisma.$transaction(async (tx) => {
     const updated = await tx.order.update({

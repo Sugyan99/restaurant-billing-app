@@ -13,18 +13,19 @@ const splitSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  {
-  return safeHandler("bills/[id]/split/POST", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER", "MANAGER", "CASHIER"]);
+  return safeHandler("bills/[id]/split/POST", async () => {
+    const session = requireAuth(req, ["OWNER", "MANAGER", "CASHIER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
   const body = await req.json();
   const parsed = splitSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
-  }
+    return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400
+  });
+}
 
   const bill = await prisma.bill.findUnique({ where: { id }, include: { order: { include: { table: true } } } });
   if (!bill) return NextResponse.json({ error: "Bill not found" }, { status: 404 });

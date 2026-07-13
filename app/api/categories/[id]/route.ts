@@ -5,10 +5,10 @@ import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function PUT(
   req: NextRequest,
-  {
-  return safeHandler("categories/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER", "MANAGER"]);
+  return safeHandler("categories/[id]/PUT", async () => {
+    const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
@@ -19,16 +19,17 @@ export async function PUT(
     data: { name: body.name, sortOrder: body.sortOrder },
   });
 
-  return NextResponse.json({ category });
+  return NextResponse.json({ category
+  });
 });
 }
 
 export async function DELETE(
   req: NextRequest,
-  {
-  return safeHandler("categories/[id]/DELETE", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER", "MANAGER"]);
+  return safeHandler("categories/[id]/DELETE", async () => {
+    const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
@@ -42,6 +43,7 @@ export async function DELETE(
   }
 
   await prisma.category.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true
+  });
 });
 }

@@ -5,10 +5,10 @@ import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function PUT(
   req: NextRequest,
-  {
-  return safeHandler("menu-items/[id]/PUT", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER", "MANAGER"]);
+  return safeHandler("menu-items/[id]/PUT", async () => {
+    const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
@@ -26,16 +26,17 @@ export async function PUT(
     },
   });
 
-  return NextResponse.json({ item });
+  return NextResponse.json({ item
+  });
 });
 }
 
 export async function DELETE(
   req: NextRequest,
-  {
-  return safeHandler("menu-items/[id]/DELETE", async () => { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = requireAuth(req, ["OWNER", "MANAGER"]);
+  return safeHandler("menu-items/[id]/DELETE", async () => {
+    const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
   const { id } = await params;
@@ -48,8 +49,8 @@ export async function DELETE(
     await prisma.menuItem.update({ where: { id }, data: { isAvailable: false } });
     return NextResponse.json({
       message: "Item has past orders, so it was marked unavailable instead of deleted",
-    });
-  }
+  });
+}
 
   await prisma.menuItem.delete({ where: { id } });
   return NextResponse.json({ success: true });
