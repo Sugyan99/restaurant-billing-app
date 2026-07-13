@@ -199,6 +199,7 @@ model Settings {
   website        String?
   currency       String  @default("INR")
   openingCash    Float   @default(0)
+  permissions    Json?
   receiptHeader  String? @default("Thank you for your visit!")
   receiptFooter  String? @default("Visit us again soon!")
 }

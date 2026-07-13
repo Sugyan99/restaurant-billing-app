@@ -19,6 +19,7 @@ const NAV_MANAGE: { href: string; icon: string; label: string; badge?: boolean }
   { href: "/dashboard/discounts", icon: "🏷️", label: "Discounts" },
   { href: "/dashboard/qr", icon: "📱", label: "Table QR Codes" },
   { href: "/dashboard/import", icon: "⬆️", label: "Import Menu" },
+  { href: "/dashboard/stock-ledger", icon: "📊", label: "Stock Ledger" },
   { href: "/dashboard/expenses", icon: "💰", label: "Expenses" },
   { href: "/dashboard/day-close", icon: "🔒", label: "Day Close" },
 ];
@@ -30,6 +31,8 @@ const NAV_REPORTS: { href: string; icon: string; label: string; badge?: boolean 
 ];
 const NAV_ADMIN: { href: string; icon: string; label: string; badge?: boolean }[] = [
   { href: "/dashboard/users", icon: "👥", label: "Staff" },
+  { href: "/dashboard/permissions", icon: "🔑", label: "Permissions" },
+  { href: "/dashboard/data-management", icon: "🗃️", label: "Data Management" },
   { href: "/dashboard/settings", icon: "⚙️", label: "Settings" },
 ];
 
