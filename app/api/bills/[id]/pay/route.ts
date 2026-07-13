@@ -71,13 +71,15 @@ export async function POST(
       }
     }
 
-    // Auto-update customer stats if order has a phone number
+    // Auto-update customer stats + loyalty points (1 pt per ₹10)
     if (paid.order.customerPhone) {
+      const pointsEarned = Math.floor(paid.total / 10);
       await tx.customer.updateMany({
         where: { phone: paid.order.customerPhone },
         data: {
           totalVisits: { increment: 1 },
           totalSpent: { increment: paid.total },
+          loyaltyPoints: { increment: pointsEarned },
         },
       });
     }

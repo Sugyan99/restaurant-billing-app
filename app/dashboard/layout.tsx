@@ -5,28 +5,30 @@ import { useEffect, useState } from "react";
 import { ToastContainer } from "@/components/Toast";
 import { AIAssistant } from "@/components/AIAssistant";
 
-const NAV_MAIN = [
+const NAV_MAIN: { href: string; icon: string; label: string; badge?: boolean }[] = [
   { href: "/dashboard/home", icon: "🏠", label: "Dashboard" },
   { href: "/dashboard/tables", icon: "🪑", label: "Tables & POS" },
-  { href: "/dashboard/orders", icon: "🍳", label: "Kitchen / KOT" },
+  { href: "/dashboard/orders", icon: "🍳", label: "Kitchen / KOT", badge: true },
   { href: "/dashboard/bills", icon: "🧾", label: "Bills & Payments" },
 ];
-const NAV_MANAGE = [
+const NAV_MANAGE: { href: string; icon: string; label: string; badge?: boolean }[] = [
   { href: "/dashboard/menu", icon: "🍽️", label: "Menu" },
   { href: "/dashboard/inventory", icon: "📦", label: "Inventory" },
   { href: "/dashboard/reservations", icon: "📅", label: "Reservations" },
   { href: "/dashboard/customers", icon: "👤", label: "Customers" },
   { href: "/dashboard/discounts", icon: "🏷️", label: "Discounts" },
+  { href: "/dashboard/qr", icon: "📱", label: "Table QR Codes" },
+  { href: "/dashboard/import", icon: "⬆️", label: "Import Menu" },
   { href: "/dashboard/expenses", icon: "💰", label: "Expenses" },
   { href: "/dashboard/day-close", icon: "🔒", label: "Day Close" },
 ];
-const NAV_REPORTS = [
+const NAV_REPORTS: { href: string; icon: string; label: string; badge?: boolean }[] = [
   { href: "/dashboard/reports", icon: "📊", label: "Sales Reports" },
   { href: "/dashboard/gst-report", icon: "🧾", label: "GST Report" },
   { href: "/dashboard/staff-report", icon: "👨‍💼", label: "Staff Performance" },
   { href: "/dashboard/pnl", icon: "💹", label: "P&L Statement" },
 ];
-const NAV_ADMIN = [
+const NAV_ADMIN: { href: string; icon: string; label: string; badge?: boolean }[] = [
   { href: "/dashboard/users", icon: "👥", label: "Staff" },
   { href: "/dashboard/settings", icon: "⚙️", label: "Settings" },
 ];
@@ -41,6 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [query, setQuery] = useState("");
+  const [pendingCount, setPendingCount] = useState(0);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
@@ -58,6 +61,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => { if (d.user) setUser(d.user); });
+    const loadBadge = () => fetch("/api/orders?status=PENDING").then(r => r.json()).then(d => setPendingCount(d.orders?.length ?? 0));
+    loadBadge();
+    const iv = setInterval(loadBadge, 20000);
+    return () => clearInterval(iv);
   }, []);
 
   async function logout() {
@@ -67,7 +74,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const currentPage = allNav.find(n => pathname.startsWith(n.href));
 
-  function NavSection({ title, items }: { title: string; items: typeof NAV_MAIN }) {
+  function NavSection({ title, items }: { title: string; items: { href: string; icon: string; label: string; badge?: boolean }[] }) {
     return (
       <>
         <div className="nav-section">{title}</div>
@@ -75,7 +82,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Link key={item.href} href={item.href}
             className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}>
             <span style={{ fontSize: 15 }}>{item.icon}</span>
-            <span>{item.label}</span>
+            <span style={{ flex: 1 }}>{item.label}</span>
+            {item.badge && pendingCount > 0 && (
+              <span style={{ background: "#DC2626", color: "white", borderRadius: 20, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>
+                {pendingCount}
+              </span>
+            )}
           </Link>
         ))}
       </>
