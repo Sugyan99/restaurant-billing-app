@@ -53,3 +53,23 @@ export async function PUT(
   });
 });
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return safeHandler("customers/[id]/DELETE", async () => {
+    const session = requireAuth(req, ["OWNER"]);
+    if (isAuthError(session)) return session;
+    const { id } = await params;
+    const customer = await prisma.customer.findUnique({ where: { id } });
+    if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    // Check no active orders linked to this phone
+    const active = await prisma.order.count({
+      where: { customerPhone: customer.phone, status: { in: ["PENDING","PREPARING","READY"] } },
+    });
+    if (active > 0) return NextResponse.json({ error: "Customer has active orders" }, { status: 400 });
+    await prisma.customer.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  });
+}

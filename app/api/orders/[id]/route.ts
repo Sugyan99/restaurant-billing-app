@@ -94,3 +94,39 @@ export async function PUT(
   return NextResponse.json({ order });
 });
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return safeHandler("orders/[id]/DELETE", async () => {
+    const session = requireAuth(req, ["OWNER"]);
+    if (isAuthError(session)) return session;
+    const { id } = await params;
+
+    const order = await prisma.order.findUnique({
+      where: { id }, include: { table: true, bill: true },
+    });
+    if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    if (!["SERVED","CANCELLED"].includes(order.status)) {
+      return NextResponse.json({ error: "Only served or cancelled orders can be deleted" }, { status: 400 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (order.bill) await tx.bill.delete({ where: { id: order.bill.id } });
+      // orderItems cascade delete via schema onDelete: Cascade
+      await tx.order.delete({ where: { id } });
+      // Free table if all orders gone
+      if (order.tableId) {
+        const remaining = await tx.order.count({
+          where: { tableId: order.tableId, status: { in: ["PENDING","PREPARING","READY"] } },
+        });
+        if (remaining === 0) {
+          await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: "FREE" } });
+        }
+      }
+    });
+
+    return NextResponse.json({ success: true });
+  });
+}

@@ -1,3 +1,5 @@
+import { DeleteButton } from "@/components/DeleteButton";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
@@ -15,6 +17,7 @@ const CAT_COLORS: Record<string, string> = {
 };
 
 export default function ExpensesPage() {
+  const { isOwner } = useCurrentUser();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [total, setTotal] = useState(0);
   const [form, setForm] = useState({ description: "", amount: "", category: "INGREDIENTS" });
@@ -90,7 +93,10 @@ export default function ExpensesPage() {
                       <div style={{ fontSize: 11, color: CAT_COLORS[exp.category], fontWeight: 600 }}>{exp.category}</div>
                     </div>
                   </div>
-                  <span style={{ fontWeight: 700, fontSize: 15, color: "#DC2626" }}>₹{exp.amount.toFixed(2)}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontWeight: 700, fontSize: 15, color: "#DC2626" }}>₹{exp.amount.toFixed(2)}</span>
+                    {isOwner && <DeleteButton url={`/api/expenses/${exp.id}`} onDeleted={load} />}
+                  </div>
                 </div>
               ))}
             </div>

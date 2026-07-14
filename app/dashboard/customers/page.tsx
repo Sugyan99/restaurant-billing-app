@@ -1,3 +1,5 @@
+import { DeleteButton } from "@/components/DeleteButton";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
@@ -10,6 +12,7 @@ type Customer = {
 const EMPTY = { name: "", phone: "", email: "", address: "" };
 
 export default function CustomersPage() {
+  const { isOwner } = useCurrentUser();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -76,7 +79,7 @@ export default function CustomersPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid #E2E8F0" }}>
-                  {["Customer", "Phone", "Email", "Total Visits", "Total Spent", "Since"].map(h => (
+                  {["Customer", "Phone", "Email", "Total Visits", "Total Spent", "Since", ""].map(h => (
                     <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>{h}</th>
                   ))}
                 </tr>
@@ -94,6 +97,9 @@ export default function CustomersPage() {
                     <td style={{ padding: "12px 16px", fontWeight: 700, color: "#E8721C" }}>₹{c.totalSpent.toFixed(2)}</td>
                     <td style={{ padding: "12px 16px", color: "#64748B" }}>
                       {new Date(c.createdAt).toLocaleDateString("en-IN")}
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      {isOwner && <DeleteButton url={`/api/customers/${c.id}`} onDeleted={load} confirmMsg="Delete customer?" />}
                     </td>
                   </tr>
                 ))}

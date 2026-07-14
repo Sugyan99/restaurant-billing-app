@@ -1,3 +1,5 @@
+import { DeleteButton } from "@/components/DeleteButton";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
@@ -17,6 +19,7 @@ const STATUS_FLOW: Record<string, string> = {
 };
 
 export default function OrdersPage() {
+  const { isOwner } = useCurrentUser();
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<"ACTIVE" | "ALL">("ACTIVE");
   const [view, setView] = useState<"KOT" | "LIST">("KOT");
@@ -189,11 +192,16 @@ export default function OrdersPage() {
                         {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                       </td>
                       <td style={{ padding: "12px 16px" }}>
-                        {nextStatus && (
-                          <button className="btn btn-ghost btn-sm" onClick={() => updateStatus(order, nextStatus)}>
-                            → {nextStatus}
-                          </button>
-                        )}
+                        <div style={{ display: "flex", gap: 6 }}>
+                          {nextStatus && (
+                            <button className="btn btn-ghost btn-sm" onClick={() => updateStatus(order, nextStatus)}>
+                              → {nextStatus}
+                            </button>
+                          )}
+                          {isOwner && ["SERVED","CANCELLED"].includes(order.status) && (
+                            <DeleteButton url={`/api/orders/${order.id}`} onDeleted={load} confirmMsg="Delete order + bill?" />
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

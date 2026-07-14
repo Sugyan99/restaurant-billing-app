@@ -1,3 +1,5 @@
+import { DeleteButton } from "@/components/DeleteButton";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
@@ -14,6 +16,7 @@ type Bill = {
 };
 
 export default function BillsPage() {
+  const { isOwner } = useCurrentUser();
   const [bills, setBills] = useState<Bill[]>([]);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [payMode, setPayMode] = useState<"CASH" | "UPI" | "CARD" | "CREDIT">("CASH");
@@ -165,6 +168,7 @@ export default function BillsPage() {
                     <td style={{ padding: "12px 16px" }}>
                       <div style={{ display: "flex", gap: 6 }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => printBill(bill)}>🖨️ Print</button>
+                        {isOwner && <DeleteButton url={`/api/bills/${bill.id}`} onDeleted={loadBills} confirmMsg="Delete this bill?" />}
                         <button className="btn btn-success btn-sm" onClick={() => {
                           const items = bill.order.items.map(i => `${i.menuItem.name} x${i.quantity}`).join(", ");
                           const msg = `*Bill #${bill.billNumber}*

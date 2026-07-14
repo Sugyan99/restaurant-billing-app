@@ -1,3 +1,5 @@
+import { DeleteButton } from "@/components/DeleteButton";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
@@ -8,6 +10,7 @@ type Table = { id: string; number: string; capacity: number; status: string };
 const STATUS_COLORS: Record<string, string> = { CONFIRMED: "#2563EB", SEATED: "#16A34A", CANCELLED: "#DC2626", NO_SHOW: "#94A3B8" };
 
 export default function ReservationsPage() {
+  const { isOwner } = useCurrentUser();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -73,6 +76,7 @@ export default function ReservationsPage() {
                   {r.status === "CONFIRMED" && <button className="btn btn-success btn-sm" onClick={() => updateStatus(r.id, "SEATED")}>Seat</button>}
                   {r.status === "CONFIRMED" && <button className="btn btn-danger btn-sm" onClick={() => updateStatus(r.id, "NO_SHOW")}>No Show</button>}
                   {r.status === "CONFIRMED" && <button className="btn btn-ghost btn-sm" onClick={() => updateStatus(r.id, "CANCELLED")}>Cancel</button>}
+                  {isOwner && <DeleteButton url={`/api/reservations/${r.id}`} onDeleted={load} confirmMsg="Delete reservation?" />}
                 </div>
               </div>
             </div>
