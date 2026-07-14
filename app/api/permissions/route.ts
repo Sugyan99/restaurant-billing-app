@@ -13,7 +13,7 @@ export const DEFAULT_PERMISSIONS: Record<string, string[]> = {
 
 export async function GET(req: NextRequest) {
   return safeHandler("permissions/GET", async () => {
-    const session = requireAuth(req, ["OWNER"]);
+    const session = requireAuth(req);
     if (isAuthError(session)) return session;
     const settings = await prisma.settings.findFirst();
     const saved = (settings?.permissions as Record<string, string[]> | null) ?? {};

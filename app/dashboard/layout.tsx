@@ -45,6 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
   const [query, setQuery] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -63,7 +64,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [query]);
 
   useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(d => { if (d.user) setUser(d.user); });
+    fetch("/api/auth/me").then(r => r.json()).then(d => {
+      if (!d.user) return;
+      setUser(d.user);
+      if (d.user.role === "OWNER") {
+        setAllowedPages(["*"]);
+      } else {
+        fetch("/api/permissions").then(r => r.json()).then(p => {
+          setAllowedPages(p.permissions?.[d.user.role] ?? []);
+        }).catch(() => setAllowedPages(["home","tables","orders","bills"]));
+      }
+    });
     const loadBadge = () => fetch("/api/orders?status=PENDING").then(r => r.json()).then(d => setPendingCount(d.orders?.length ?? 0));
     loadBadge();
     const iv = setInterval(loadBadge, 20000);
@@ -77,11 +88,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const currentPage = allNav.find(n => pathname.startsWith(n.href));
 
+  // Route guard: redirect to home if user navigates to unauthorized page
+  useEffect(() => {
+    if (!user || allowedPages.includes("*")) return;
+    const pageId = pathname.replace("/dashboard/", "").split("/")[0];
+    if (pageId && pageId !== "home" && !allowedPages.includes(pageId)) {
+      router.push("/dashboard/home");
+    }
+  }, [pathname, allowedPages, user, router]);
+
+  function canAccess(href: string) {
+    if (allowedPages.includes("*")) return true;
+    const pageId = href.replace("/dashboard/", "");
+    return allowedPages.includes(pageId);
+  }
+
   function NavSection({ title, items }: { title: string; items: { href: string; icon: string; label: string; badge?: boolean }[] }) {
+    const visible = items.filter(i => canAccess(i.href));
+    if (visible.length === 0) return null;
     return (
       <>
         <div className="nav-section">{title}</div>
-        {items.map(item => (
+        {visible.map(item => (
           <Link key={item.href} href={item.href}
             className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}>
             <span style={{ fontSize: 15 }}>{item.icon}</span>
