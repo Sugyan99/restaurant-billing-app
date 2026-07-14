@@ -1,6 +1,6 @@
+"use client";
 import { DeleteButton } from "@/components/DeleteButton";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-"use client";
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
 
