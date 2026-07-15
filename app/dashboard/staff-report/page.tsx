@@ -6,10 +6,11 @@ const ROLE_ICONS: Record<string, string> = { OWNER: "👑", MANAGER: "🏪", CAS
 
 export default function StaffReportPage() {
   const [stats, setStats] = useState<Staff[]>([]);
+  const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
 
   useEffect(() => {
-    fetch(`/api/staff-report?days=${days}`).then(r => r.json()).then(d => setStats(d.stats ?? []));
+    fetch(`/api/staff-report?days=${days}`).then(r => r.json()).then(d => { setStats(d.stats ?? []); setLoading(false); });
   }, [days]);
 
   const maxRev = Math.max(...stats.map(s => s.revenue), 1);
@@ -30,7 +31,8 @@ export default function StaffReportPage() {
       </div>
 
       {stats.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "#94A3B8" }}>
+        loading ? <div style={{display:"flex",flexDirection:"column",gap:12}}>{[1,2,3].map(i=><div key={i} className="skeleton" style={{height:80}}/>)}</div> :
+      <div style={{ textAlign: "center", padding: "60px 0", color: "#94A3B8" }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
           <p>No staff data available</p>
         </div>

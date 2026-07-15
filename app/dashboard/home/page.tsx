@@ -20,6 +20,7 @@ export default function HomePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [time, setTime] = useState(new Date());
+  const [loading, setLoading] = useState(true);
   const [trend, setTrend] = useState<{daily:{date:string;revenue:number;orders:number}[];peakHour:{hour:string;revenue:string}|null}|null>(null);
 
   const load = useCallback(async () => {
@@ -34,6 +35,7 @@ export default function HomePage() {
     setOrders(o.orders ?? []);
     setTables(t.tables ?? []);
     setTrend(tr);
+    setLoading(false);
   }, []);
 
   useEffect(() => {

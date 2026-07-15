@@ -13,6 +13,7 @@ const ACTIONS = [
 
 export default function DataManagementPage() {
   const [counts, setCounts] = useState<Counts | null>(null);
+  const [pageLoading, setPageLoading] = useState(true);
   const [before, setBefore] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
@@ -21,6 +22,7 @@ export default function DataManagementPage() {
     const res = await fetch("/api/data-management");
     const d = await res.json();
     setCounts(d.counts);
+    setPageLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);

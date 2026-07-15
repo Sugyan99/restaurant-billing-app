@@ -5,10 +5,11 @@ type Table = { id: string; number: string; capacity: number };
 
 export default function QRPage() {
   const [tables, setTables] = useState<Table[]>([]);
+  const [loading, setLoading] = useState(true);
   const [baseUrl, setBaseUrl] = useState("");
 
   useEffect(() => {
-    fetch("/api/tables").then(r => r.json()).then(d => setTables(d.tables ?? []));
+    fetch("/api/tables").then(r => r.json()).then(d => { setTables(d.tables ?? []); setLoading(false); });
     setBaseUrl(window.location.origin);
   }, []);
 

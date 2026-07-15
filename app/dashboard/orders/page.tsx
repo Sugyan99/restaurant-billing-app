@@ -23,11 +23,13 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<"ACTIVE" | "ALL">("ACTIVE");
   const [view, setView] = useState<"KOT" | "LIST">("KOT");
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/orders");
     const data = await res.json();
     setOrders(data.orders ?? []);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -114,6 +116,8 @@ export default function OrdersPage() {
           <p style={{ fontSize: 15, fontWeight: 600 }}>No active orders</p>
           <p style={{ fontSize: 13 }}>Orders will appear here automatically when placed from Tables page</p>
         </div>
+      ) : loading ? (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>{[1,2,3,4].map(i=><div key={i} className="skeleton" style={{height:180}}/>)}</div>
       ) : view === "KOT" ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
           {displayed.map((order) => {
