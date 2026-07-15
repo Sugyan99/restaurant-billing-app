@@ -11,6 +11,7 @@ type MenuItem = { id: string; name: string; price: number; isVeg: boolean; isAva
 type OrderItem = { menuItemId: string; name: string; price: number; quantity: number; notes?: string };
 type Order = {
   id: string; orderNumber: number; status: string; type: string;
+  bill?: { id: string; total: number; paymentStatus: string } | null;
   items: { id: string; quantity: number; price: number; menuItem: MenuItem; notes?: string }[];
 };
 
@@ -20,7 +21,10 @@ export default function TablesPage() {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [cart, setCart] = useState<OrderItem[]>([]);
-  const [orderType, setOrderType] = useState<"DINE_IN" | "TAKEAWAY">("DINE_IN");
+  const [orderType, setOrderType] = useState<"DINE_IN" | "TAKEAWAY" | "DELIVERY">("DINE_IN");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showAddTable, setShowAddTable] = useState(false);
   const [newTableNum, setNewTableNum] = useState("");
@@ -91,6 +95,16 @@ export default function TablesPage() {
     (item) => categories.find((c) => c.id === activeCategory)?.items.some((i) => i.id === item.id)
   );
 
+  function reprintBill(order: Order) {
+    const bill = order.bill;
+    if (!bill) return;
+    const w = window.open("", "_blank", "width=400,height=600");
+    if (!w) return;
+    const items = order.items.map(i => `<div class="row"><span>${i.menuItem.name} x${i.quantity}</span><span>₹${(i.price*i.quantity).toFixed(2)}</span></div>`).join("");
+    w.document.write(`<html><head><title>Bill Reprint</title><style>body{font-family:monospace;font-size:13px;padding:16px;max-width:300px}.row{display:flex;justify-content:space-between;margin:3px 0}hr{border:none;border-top:1px dashed #000;margin:8px 0}</style></head><body><h2 style="text-align:center">🍽️ RestoBill</h2><p style="text-align:center">** REPRINT **</p><hr/>${items}<hr/><div class="row"><b>TOTAL</b><b>₹${bill.total?.toFixed(2)}</b></div><hr/><p style="text-align:center">Thank you!</p></body></html>`);
+    w.document.close(); setTimeout(() => w.print(), 300);
+  }
+
   async function placeOrder() {
     if (cart.length === 0) { showToast("Add items to the order first", "error"); return; }
     setLoading(true);
@@ -112,6 +126,8 @@ export default function TablesPage() {
           body: JSON.stringify({
             type: selectedTable ? "DINE_IN" : orderType,
             tableId: selectedTable?.id,
+            customerName: customerName || undefined,
+            customerPhone: customerPhone || undefined,
             items: cart.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity })),
           }),
         });
@@ -120,6 +136,9 @@ export default function TablesPage() {
       }
       setShowNewOrder(false);
       setCart([]);
+      setCustomerName("");
+      setCustomerPhone("");
+      setCustomerAddress("");
       await loadTables();
     } catch (err: any) {
       showToast(err.message ?? "Failed to place order", "error");
@@ -180,7 +199,10 @@ export default function TablesPage() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-ghost btn-sm" onClick={() => { setOrderType("TAKEAWAY"); setSelectedTable(null); setShowNewOrder(true); setCart([]); setActiveOrder(null); }}>
-            + Takeaway Order
+            + Takeaway
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setOrderType("DELIVERY"); setSelectedTable(null); setShowNewOrder(true); setCart([]); setActiveOrder(null); }}>
+            🛵 Delivery
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowAddTable(true)}>
             + Add Table
@@ -283,6 +305,21 @@ export default function TablesPage() {
 
               {/* Right: Bill */}
               <div className="bill-panel" style={{ borderRadius: 0 }}>
+                {(orderType === "TAKEAWAY" || orderType === "DELIVERY") && !selectedTable && (
+                  <div style={{ padding: "10px 16px", borderBottom: "1px solid #253045", background: "#1A2232" }}>
+                    <input className="form-input" placeholder="Customer Name" value={customerName}
+                      onChange={e => setCustomerName(e.target.value)}
+                      style={{ marginBottom: 6, background: "#253045", border: "1px solid #3A4A62", color: "white", fontSize: 12 }} />
+                    <input className="form-input" placeholder="Phone (required)" value={customerPhone}
+                      onChange={e => setCustomerPhone(e.target.value)}
+                      style={{ marginBottom: 6, background: "#253045", border: "1px solid #3A4A62", color: "white", fontSize: 12 }} />
+                    {orderType === "DELIVERY" && (
+                      <input className="form-input" placeholder="Delivery Address" value={customerAddress}
+                        onChange={e => setCustomerAddress(e.target.value)}
+                        style={{ background: "#253045", border: "1px solid #3A4A62", color: "white", fontSize: 12 }} />
+                    )}
+                  </div>
+                )}
                 <div className="bill-panel-header">
                   <h3>Current Order</h3>
                   <p>{cart.length} item{cart.length !== 1 ? "s" : ""} added</p>
@@ -333,9 +370,14 @@ export default function TablesPage() {
                     <button className="btn btn-primary" style={{ justifyContent: "center" }} onClick={placeOrder} disabled={loading || cart.length === 0}>
                       {loading ? "Placing..." : activeOrder ? "🍳 Add to KOT" : "🍳 Place Order + KOT"}
                     </button>
-                    {activeOrder && (
+                    {activeOrder && !activeOrder.bill && (
                       <button className="btn btn-success" style={{ justifyContent: "center" }} onClick={generateBill} disabled={loading}>
                         🧾 Generate Bill
+                      </button>
+                    )}
+                    {activeOrder?.bill && (
+                      <button className="btn btn-ghost" style={{ justifyContent: "center" }} onClick={() => reprintBill(activeOrder)}>
+                        🖨️ Reprint Bill
                       </button>
                     )}
                   </div>

@@ -69,7 +69,7 @@ export default function HomePage() {
       {/* Quick Stats */}
       <div className="stats-grid" style={{ marginBottom: 20 }}>
         {[
-          { label: "Today's Revenue", value: `₹${stats?.totalRevenue.toFixed(0) ?? "—"}`, sub: `${stats?.totalOrders ?? 0} orders paid`, color: "#16A34A", icon: "💰", bg: "#F0FDF4" },
+          { label: "Today's Revenue", value: `₹${stats?.totalRevenue.toFixed(0) ?? "—"}`, sub: `${stats?.totalOrders ?? 0} orders · ${stats ? Math.min(100,Math.round((stats.totalRevenue/target)*100)) : 0}% of ₹${(target/1000).toFixed(0)}k target`, color: "#16A34A", icon: "💰", bg: "#F0FDF4" },
           { label: "Pending Orders", value: orders.length, sub: "in kitchen queue", color: "#E8721C", icon: "🍳", bg: "#FFF7ED" },
           { label: "Free Tables", value: `${freeTables}/${tables.length}`, sub: `${occupiedTables} occupied`, color: "#2563EB", icon: "🪑", bg: "#EFF6FF" },
           { label: "Avg Order Value", value: `₹${stats?.avgOrderValue.toFixed(0) ?? "—"}`, sub: "per transaction", color: "#7C3AED", icon: "📊", bg: "#F5F3FF" },
@@ -94,8 +94,18 @@ export default function HomePage() {
             { icon: "🍽️", label: "Menu", path: "/dashboard/menu", color: "#7C3AED" },
             { icon: "💰", label: "Add Expense", path: "/dashboard/expenses", color: "#D97706" },
             { icon: "🔒", label: "Day Close", path: "/dashboard/day-close", color: "#64748B" },
+            { icon: "📧", label: "Email Report", path: "__email", color: "#0EA5E9" },
+            { icon: "📧", label: "Email Report", path: "", color: "#0EA5E9" },
           ].map(({ icon, label, path, color }) => (
-            <button key={path} onClick={() => router.push(path)} style={{
+            <button key={path} onClick={async () => {
+              if (path === "__email") {
+                const res = await fetch("/api/email-report", { method: "POST" });
+                const d = await res.json();
+                alert(d.sent ? "✅ Report sent!" : "📊 " + JSON.stringify(d.report, null, 2));
+                return;
+              }
+              router.push(path);
+            }} style={{
               background: "white", border: `1px solid #E2E8F0`, borderRadius: 12,
               padding: "16px 12px", cursor: "pointer", textAlign: "center",
               transition: "all 0.15s", display: "flex", flexDirection: "column",
