@@ -1,3 +1,4 @@
+import { calculateBill, createBillInTx, getGSTRates } from "@/lib/billingEngine";
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -70,22 +71,12 @@ export async function PUT(
       }
     }
 
-    // Auto-create bill if order is SERVED and no bill exists yet
+    // Auto-create bill if order is SERVED — uses BillingEngine (single source of truth)
     if (status === "SERVED" && !updated.bill) {
-      const settings = await tx.settings.findFirst();
-      const cgstPercent = settings?.cgstPercent ?? 2.5;
-      const sgstPercent = settings?.sgstPercent ?? 2.5;
-
-      const subtotal = updated.items.reduce(
-        (sum, item) => sum + item.price * item.quantity, 0
-      );
-      const cgst = parseFloat(((subtotal * cgstPercent) / 100).toFixed(2));
-      const sgst = parseFloat(((subtotal * sgstPercent) / 100).toFixed(2));
-      const total = parseFloat((subtotal + cgst + sgst).toFixed(2));
-
-      await tx.bill.create({
-        data: { orderId: id, subtotal, cgst, sgst, discount: 0, total },
-      });
+      const { cgstPercent, sgstPercent } = await getGSTRates(tx);
+      const itemsTotal = updated.items.reduce((s, i) => s + i.price * i.quantity, 0);
+      const calc = calculateBill(itemsTotal, 0, cgstPercent, sgstPercent);
+      await createBillInTx(tx, id, calc); // upsert — safe if bill already exists
     }
 
     return updated;
