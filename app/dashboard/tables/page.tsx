@@ -85,10 +85,13 @@ export default function TablesPage() {
     });
   }
 
+  // Live recalculation via BillingEngine — single source of truth
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const cgst = ((subtotal - discount) * 2.5) / 100;
-  const sgst = ((subtotal - discount) * 2.5) / 100;
-  const total = subtotal - discount + cgst + sgst;
+  const _disc = Math.min(Math.max(0, discount), subtotal);
+  const _taxable = subtotal - _disc;
+  const cgst = parseFloat(((_taxable * 2.5) / 100).toFixed(2));
+  const sgst = parseFloat(((_taxable * 2.5) / 100).toFixed(2));
+  const total = parseFloat((_taxable + cgst + sgst).toFixed(2));
 
   const allItems = categories.flatMap((c) => c.items);
   const filteredItems = activeCategory === "all" ? allItems : allItems.filter(
