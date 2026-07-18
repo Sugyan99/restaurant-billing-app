@@ -95,7 +95,11 @@ export default function HomePage() {
             { icon: "💰", label: "Add Expense", path: "/dashboard/expenses", color: "#D97706" },
             { icon: "🔒", label: "Day Close", path: "/dashboard/day-close", color: "#64748B" },
           ].map(({ icon, label, path, color }) => (
-            onClick={() => router.push(path)}
+            <button key={path} onClick={() => router.push(path)} style={{
+              background: "white", border: "1px solid #E2E8F0", borderRadius: 12,
+              padding: "16px 12px", cursor: "pointer", textAlign: "center",
+              transition: "all 0.15s", display: "flex", flexDirection: "column",
+              alignItems: "center", gap: 8,
             }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = color; (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E2E8F0"; (e.currentTarget as HTMLElement).style.transform = "none"; }}
