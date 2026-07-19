@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
-import { finalizePayment } from "@/lib/billingEngine";
+import { finalizePayment, auditLog } from "@/lib/billingEngine";
 
 const paySchema = z.object({
   paymentMode: z.enum(["CASH", "UPI", "CARD", "CREDIT"]),
@@ -44,6 +44,10 @@ export async function POST(
         include: { order: { include: { items: { include: { menuItem: true } }, table: true } } },
       });
       // Shared post-payment side effects via engine (order SERVED, table FREE, loyalty pts)
+      await auditLog(tx, "BILL_PAID", "Bill", id, session.userId, {
+        paymentMode: parsed.data.paymentMode,
+        total: paid.total,
+      });
       await finalizePayment(tx, {
         orderId: paid.orderId,
         total: paid.total,

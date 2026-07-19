@@ -235,3 +235,44 @@ model Reservation {
   notes         String?
   createdAt     DateTime         @default(now())
 }
+
+model BillingAuditLog {
+  id        String   @id @default(cuid())
+  orderId   String
+  billId    String?
+  action    String
+  actor     String
+  meta      Json?
+  createdAt DateTime @default(now())
+}
+
+model BillDraft {
+  id           String   @id @default(cuid())
+  orderId      String   @unique
+  cartSnapshot Json
+  discount     Float    @default(0)
+  updatedAt    DateTime @updatedAt
+}
+
+model InvoiceDraft {
+  id           String   @id @default(cuid())
+  orderId      String   @unique
+  cartSnapshot Json
+  discount     Float    @default(0)
+  cgstPercent  Float    @default(2.5)
+  sgstPercent  Float    @default(2.5)
+  subtotal     Float    @default(0)
+  total        Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String
+  userId    String?
+  meta      Json?
+  createdAt DateTime @default(now())
+}

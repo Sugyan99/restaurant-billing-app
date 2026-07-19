@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
-import { calculateBill, createBillInTx, getGSTRates } from "@/lib/billingEngine";
+import { calculateBill, createInvoice, cartMergeDuplicates, getGSTRates } from "@/lib/billingEngine";
 
 const createBillSchema = z.object({
   orderId: z.string().min(1),
@@ -50,21 +50,29 @@ export async function POST(req: NextRequest) {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: true },
+      include: { items: { include: { menuItem: { select: { name: true } } } } },
     });
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
-    // All billing logic inside single transaction — atomic, no race condition
-    const bill = await prisma.$transaction(async (tx) => {
-      const { cgstPercent, sgstPercent } = await getGSTRates(tx);
-      const itemsTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
-      const calc = calculateBill(itemsTotal, discount, cgstPercent, sgstPercent);
-      // upsert prevents duplicate bill even on double-click
-      return createBillInTx(tx, orderId, calc);
+    // Build cart from order items for draft/audit
+    const cart = cartMergeDuplicates({
+      items: order.items.map(i => ({
+        menuItemId: i.menuItemId,
+        name: i.menuItem?.name ?? i.menuItemId,
+        price: i.price,
+        quantity: i.quantity,
+      })),
     });
 
-    // 409 if bill already existed (upsert returned existing)
-    const statusCode = bill.subtotal === 0 ? 200 : 201;
-    return NextResponse.json({ bill }, { status: statusCode });
+    // Get GST rates for calculation
+    const settings = await prisma.settings.findFirst({ select: { cgstPercent: true, sgstPercent: true } });
+    const cgstPercent = settings?.cgstPercent ?? 2.5;
+    const sgstPercent = settings?.sgstPercent ?? 2.5;
+    const itemsTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
+    const calc = calculateBill(itemsTotal, discount, cgstPercent, sgstPercent);
+
+    // createInvoice: lock + draft + atomic tx + audit log
+    const { bill } = await createInvoice(prisma, orderId, calc, cart, session.userId);
+    return NextResponse.json({ bill }, { status: 201 });
   });
 }
