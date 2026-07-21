@@ -197,7 +197,7 @@ export async function auditLog(
       entity,
       entityId,
       userId: userId ?? null,
-      meta: meta ?? null,
+      meta: (meta ?? undefined) as never,
     },
   });
 }
