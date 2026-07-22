@@ -193,11 +193,10 @@ export async function auditLog(
   await tx.billingAuditLog.create({
     data: {
       id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      orderId: arg3,
       action,
-      entity,
-      entityId,
-      userId: userId ?? null,
-      meta: (meta ?? undefined) as never,
+      actor: typeof arg5 === "string" ? arg5 : arg4,
+      meta: (typeof arg5 === "object" ? arg5 : arg6) as never,
     },
   });
 }
