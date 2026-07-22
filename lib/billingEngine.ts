@@ -190,7 +190,7 @@ export async function auditLog(
   userId?: string,
   meta?: Record<string, unknown>
 ): Promise<void> {
-  await tx.auditLog.create({
+  await tx.billingAuditLog.create({
     data: {
       id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       action,
@@ -236,7 +236,10 @@ export async function createInvoice(
     const bill = await prisma.$transaction(async (tx) => {
       // a. Check for existing bill (idempotent return)
       const existing = await tx.bill.findUnique({ where: { orderId } });
-      if (existing) return existing;
+      if (existing) return tx.bill.findUniqueOrThrow({
+        where: { orderId },
+        include: { order: { include: { items: { include: { menuItem: true } }, table: true } } },
+      });
 
       // b. Upsert (atomic — no race between check and create)
       const created = await createBillInTx(tx, orderId, calc);
@@ -255,7 +258,8 @@ export async function createInvoice(
       return created;
     });
 
-    return { bill, created: true };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return { bill: bill as any, created: true };
   } catch (err) {
     // Draft preserved on failure — crash recovery possible
     throw err;
