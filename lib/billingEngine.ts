@@ -185,18 +185,17 @@ export async function clearDraft(tx: Tx, orderId: string): Promise<void> {
 export async function auditLog(
   tx: Tx,
   action: string,
-  entity: string,
-  entityId: string,
-  userId?: string,
+  orderId: string,
+  actor: string,
   meta?: Record<string, unknown>
 ): Promise<void> {
   await tx.billingAuditLog.create({
     data: {
       id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      orderId: arg3,
+      orderId,
       action,
-      actor: typeof arg5 === "string" ? arg5 : arg4,
-      meta: (typeof arg5 === "object" ? arg5 : arg6) as never,
+      actor,
+      meta: (meta ?? undefined) as never,
     },
   });
 }

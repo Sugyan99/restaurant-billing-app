@@ -44,7 +44,7 @@ export async function POST(
         include: { order: { include: { items: { include: { menuItem: true } }, table: true } } },
       });
       // Shared post-payment side effects via engine (order SERVED, table FREE, loyalty pts)
-      await auditLog(tx, "BILL_PAID", "Bill", id, session.userId, {
+      await auditLog(tx, "BILL_PAID", paid.orderId, session.userId, {
         paymentMode: parsed.data.paymentMode,
         total: paid.total,
       });
