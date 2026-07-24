@@ -92,6 +92,8 @@ model MenuItem {
   isVeg       Boolean     @default(true)
   isAvailable Boolean     @default(true)
   imageUrl    String?
+  taxRate     Float?
+  taxCategory String?
   categoryId  String
   category    Category    @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
@@ -140,6 +142,7 @@ model OrderItem {
   menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
   quantity   Int      @default(1)
   price      Float
+  taxRate    Float?
   notes      String?
 }
 
@@ -152,6 +155,9 @@ model Bill {
   cgst          Float         @default(0)
   sgst          Float         @default(0)
   discount      Float         @default(0)
+  igst          Float         @default(0)
+  taxMode       String        @default("EXCLUSIVE")
+  isIGST        Boolean       @default(false)
   total         Float
   paymentMode   PaymentMode?
   splitPayments Json?
@@ -194,6 +200,9 @@ model Settings {
   gstNumber      String?
   cgstPercent    Float   @default(2.5)
   sgstPercent    Float   @default(2.5)
+  igstPercent    Float   @default(5.0)
+  taxMode        String  @default("EXCLUSIVE")
+  isIGST         Boolean @default(false)
   phone          String?
   email          String?
   website        String?

@@ -73,9 +73,9 @@ export async function PUT(
 
     // Auto-create bill if order is SERVED — uses BillingEngine (single source of truth)
     if (status === "SERVED" && !updated.bill) {
-      const { cgstPercent, sgstPercent } = await getGSTRates(tx);
+      const { cgstPercent, sgstPercent, taxConfig } = await getGSTRates(tx);
       const itemsTotal = updated.items.reduce((s, i) => s + i.price * i.quantity, 0);
-      const calc = calculateBill(itemsTotal, 0, cgstPercent, sgstPercent);
+      const calc = calculateBill(itemsTotal, 0, cgstPercent, sgstPercent, taxConfig);
       await createBillInTx(tx, id, calc); // upsert — safe if bill already exists
     }
 

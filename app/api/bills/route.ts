@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     const cgstPercent = settings?.cgstPercent ?? 2.5;
     const sgstPercent = settings?.sgstPercent ?? 2.5;
     const itemsTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
-    const calc = calculateBill(itemsTotal, discount, cgstPercent, sgstPercent);
+    const calc = calculateBill(itemsTotal, discount, cgstPercent, sgstPercent, taxConfig);
 
     // createInvoice: lock + draft + atomic tx + audit log
     const { bill } = await createInvoice(prisma, orderId, calc, cart, session.userId);

@@ -1,3 +1,4 @@
+import { calcBillTax, taxConfigFromSettings, TaxConfig } from "@/lib/taxEngine";
 import { PrismaClient } from "@prisma/client";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -106,15 +107,32 @@ export function calculateBill(
   itemsTotal: number,
   discount: number,
   cgstPercent: number,
-  sgstPercent: number
+  sgstPercent: number,
+  taxConfig?: Partial<TaxConfig>
 ): BillCalculation {
-  const subtotal = parseFloat(Math.max(0, itemsTotal).toFixed(2));
-  const disc = parseFloat(Math.min(Math.max(0, discount), subtotal).toFixed(2));
-  const taxableAmount = parseFloat((subtotal - disc).toFixed(2));
-  const cgst = parseFloat(((taxableAmount * Math.max(0, cgstPercent)) / 100).toFixed(2));
-  const sgst = parseFloat(((taxableAmount * Math.max(0, sgstPercent)) / 100).toFixed(2));
-  const total = parseFloat((taxableAmount + cgst + sgst).toFixed(2));
-  return { subtotal, discount: disc, taxableAmount, cgst, sgst, total, cgstPercent, sgstPercent };
+  const config = taxConfigFromSettings({
+    cgstPercent,
+    sgstPercent,
+    igstPercent: taxConfig?.igstPercent ?? 5.0,
+    taxMode: taxConfig?.taxMode ?? "EXCLUSIVE",
+    isIGST: taxConfig?.isIGST ?? false,
+  });
+  // Use taxEngine for authoritative calculation
+  const r = calcBillTax(
+    [{ price: itemsTotal, quantity: 1 }],
+    discount,
+    config
+  );
+  return {
+    subtotal: r.subtotal,
+    discount: r.discount,
+    taxableAmount: r.taxableAmount,
+    cgst: r.cgst,
+    sgst: r.sgst,
+    total: r.total,
+    cgstPercent,
+    sgstPercent,
+  };
 }
 
 export function recalculateFromCart(
@@ -130,9 +148,16 @@ export function recalculateFromCart(
 
 type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
-export async function getGSTRates(tx: Tx): Promise<{ cgstPercent: number; sgstPercent: number }> {
-  const s = await tx.settings.findFirst({ select: { cgstPercent: true, sgstPercent: true } });
-  return { cgstPercent: s?.cgstPercent ?? 2.5, sgstPercent: s?.sgstPercent ?? 2.5 };
+export async function getGSTRates(tx: Tx): Promise<{ cgstPercent: number; sgstPercent: number; taxConfig: TaxConfig }> {
+  const s = await tx.settings.findFirst({
+    select: { cgstPercent: true, sgstPercent: true, igstPercent: true, taxMode: true, isIGST: true },
+  });
+  const taxConfig = taxConfigFromSettings(s);
+  return {
+    cgstPercent: taxConfig.cgstPercent,
+    sgstPercent: taxConfig.sgstPercent,
+    taxConfig,
+  };
 }
 
 // ─── Draft (autosave + crash recovery) ───────────────────────────────────────

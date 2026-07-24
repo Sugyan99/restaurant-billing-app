@@ -5,7 +5,7 @@ import { showToast } from "@/components/Toast";
 type Settings = {
   id: string; restaurantName: string; address?: string; gstNumber?: string;
   cgstPercent: number; sgstPercent: number; phone?: string;
-  email?: string; website?: string; currency: string; openingCash: number; receiptHeader?: string; receiptFooter?: string;
+  email?: string; website?: string; currency: string; openingCash: number; receiptHeader?: string; receiptFooter?: string; taxMode?: string; isIGST?: boolean; igstPercent?: number;
 };
 
 export default function SettingsPage() {
