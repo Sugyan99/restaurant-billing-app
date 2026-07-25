@@ -65,9 +65,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Get GST rates for calculation
-    const settings = await prisma.settings.findFirst({ select: { cgstPercent: true, sgstPercent: true } });
-    const cgstPercent = settings?.cgstPercent ?? 2.5;
-    const sgstPercent = settings?.sgstPercent ?? 2.5;
+    const { cgstPercent, sgstPercent, taxConfig } = await getGSTRates(prisma as any);
     const itemsTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
     const calc = calculateBill(itemsTotal, discount, cgstPercent, sgstPercent, taxConfig);
 
