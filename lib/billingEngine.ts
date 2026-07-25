@@ -271,7 +271,7 @@ export async function createInvoice(
       await clearDraft(tx, orderId);
 
       // d. Audit log
-      await auditLog(tx, "BILL_CREATED", "Bill", created.id, userId, {
+      await auditLog(tx, "BILL_CREATED", orderId, userId ?? "system", {
         orderId,
         subtotal: calc.subtotal,
         discount: calc.discount,
