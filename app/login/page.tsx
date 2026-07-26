@@ -91,7 +91,27 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <p style={{ textAlign: "center", fontSize: 12, color: "#3A4A62", marginTop: 20 }}>
+          {/* Divider */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "16px 0 0" }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+            <span style={{ fontSize: 11, color: "#3A4A62" }}>OR</span>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+          </div>
+
+          {/* Auth0 Button */}
+          <button onClick={handleAuth0} disabled={auth0Loading} style={{
+            width: "100%", padding: "11px", borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.06)", color: "white",
+            fontSize: 13, fontWeight: 600, cursor: auth0Loading ? "not-allowed" : "pointer",
+            marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            transition: "all 0.15s",
+          }}>
+            <span style={{ fontSize: 18 }}>🔐</span>
+            {auth0Loading ? "Redirecting..." : "Continue with Auth0"}
+          </button>
+
+          <p style={{ textAlign: "center", fontSize: 12, color: "#3A4A62", marginTop: 14 }}>
             Need an account? Contact the restaurant owner.
           </p>
         </div>
