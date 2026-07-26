@@ -285,3 +285,36 @@ model AuditLog {
   meta      Json?
   createdAt DateTime @default(now())
 }
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  role      String?
+  createdAt DateTime @default(now())
+}
+
+model PurchaseOrder {
+  id           String              @id @default(cuid())
+  supplierName String
+  status       String              @default("PENDING")
+  totalAmount  Float               @default(0)
+  notes        String?
+  orderedById  String
+  expectedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  items        PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  name            String
+  quantity        Float
+  unit            String        @default("kg")
+  costPerUnit     Float         @default(0)
+  total           Float         @default(0)
+}

@@ -45,6 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [openSections, setOpenSections] = useState<string[]>(["Operations"]);
   const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
   const [query, setQuery] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
@@ -106,10 +107,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   function NavSection({ title, items }: { title: string; items: { href: string; icon: string; label: string; badge?: boolean }[] }) {
     const visible = items.filter(i => canAccess(i.href));
     if (visible.length === 0) return null;
+    const isOpen = openSections.includes(title);
+    const hasActive = visible.some(i => pathname.startsWith(i.href));
     return (
       <>
-        <div className="nav-section">{title}</div>
-        {visible.map(item => (
+        <div className="nav-section" style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", paddingRight: 16 }}
+          onClick={() => setOpenSections(prev => isOpen ? prev.filter(s => s !== title) : [...prev, title])}>
+          <span>{title}</span>
+          <span style={{ fontSize: 8, color: hasActive ? "#E8721C" : "#3A4A62" }}>{isOpen ? "▲" : "▼"}</span>
+        </div>
+        {isOpen && visible.map(item => (
           <Link key={item.href} href={item.href}
             className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}>
             <span style={{ fontSize: 15 }}>{item.icon}</span>

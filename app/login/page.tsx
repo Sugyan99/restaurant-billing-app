@@ -9,6 +9,22 @@ export default function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [auth0Loading, setAuth0Loading] = useState(false);
+
+  async function handleAuth0() {
+    setAuth0Loading(true);
+    // Redirect to Auth0 Universal Login
+    const domain = process.env.NEXT_PUBLIC_AUTH0_DOMAIN;
+    const clientId = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID;
+    const redirectUri = `${window.location.origin}/api/auth/callback`;
+    if (!domain || !clientId) {
+      alert("Auth0 not configured. Set NEXT_PUBLIC_AUTH0_DOMAIN and NEXT_PUBLIC_AUTH0_CLIENT_ID in Vercel.");
+      setAuth0Loading(false);
+      return;
+    }
+    const url = `https://${domain}/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=openid%20profile%20email`;
+    window.location.href = url;
+  }
 
   async function handleLogin() {
     if (!email || !password) { setError("Please enter email and password"); return; }
