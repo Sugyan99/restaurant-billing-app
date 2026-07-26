@@ -12,7 +12,7 @@ export function showToast(message: string, type: "success" | "error" | "info" = 
 }
 
 const ICONS = { success: "✓", error: "✕", info: "ℹ" };
-const COLORS = { success: "#166534", error: "#991B1B", info: "#1E40AF" };
+const COLORS = { success: "toast-success", error: "toast-error", info: "toast-info" };
 
 export function ToastContainer() {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -20,6 +20,7 @@ export function ToastContainer() {
   useEffect(() => {
     const handler = (t: Toast) => {
       setToasts(prev => [...prev, t]);
+      // auto remove after a while
       setTimeout(() => setToasts(prev => prev.filter(x => x.id !== t.id)), 3500);
     };
     listeners.push(handler);
@@ -27,19 +28,17 @@ export function ToastContainer() {
   }, []);
 
   return (
-    <div className="toast-container no-print">
+    // aria-live region so screen readers announce notifications
+    <div className="toast-container no-print" aria-live="polite" aria-atomic="true">
       {toasts.map(t => (
-        <div key={t.id} style={{
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "12px 16px", borderRadius: 12, fontSize: 13, fontWeight: 600,
-          background: COLORS[t.type], color: "white",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-          animation: "slideIn 0.25s cubic-bezier(0.34,1.56,0.64,1)"
-        }}>
-          <span style={{ fontSize: 16, background: "rgba(255,255,255,0.2)", borderRadius: "50%", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {ICONS[t.type]}
-          </span>
-          {t.message}
+        <div
+          key={t.id}
+          role="status"
+          className={`toast show ${COLORS[t.type]}`}
+          aria-label={`${t.message}`}
+        >
+          <span style={{ marginRight: 8, opacity: 0.95 }}>{ICONS[t.type]}</span>
+          <span>{t.message}</span>
         </div>
       ))}
     </div>
