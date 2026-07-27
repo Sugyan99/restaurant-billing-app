@@ -147,23 +147,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* User info + logout */}
-        <div style={{ borderTop: "1px solid #1E2D42", padding: "12px 16px" }}>
+        <div style={{ borderTop: "1px solid #1A2535", padding: "10px 12px" }}>
           {user && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#CBD5E1" }}>{user.name}</div>
-              <div style={{ fontSize: 10, color: "#3A4A62", fontWeight: 600 }}>{user.role}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "6px 8px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#E8721C,#C45A0E)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "white", flexShrink: 0 }}>
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#CBD5E1", lineHeight: 1.2 }}>{user.name}</div>
+                <div style={{ fontSize: 9, color: "#E8721C", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>{user.role}</div>
+              </div>
             </div>
           )}
           <button onClick={logout} style={{
-            background: "#1E2D42", border: "none", width: "100%", cursor: "pointer",
-            color: "#94A3B8", fontSize: 12, padding: "7px 0", borderRadius: 6,
-            display: "flex", alignItems: "center", gap: 8, justifyContent: "center",
-            transition: "all 0.15s"
+            background: "transparent", border: "1px solid #1E2D42", width: "100%", cursor: "pointer",
+            color: "#64748B", fontSize: 11, padding: "6px 0", borderRadius: 6,
+            display: "flex", alignItems: "center", gap: 6, justifyContent: "center",
+            transition: "all 0.15s", fontWeight: 500,
           }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#DC2626"}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "#1E2D42"}
+            onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = "rgba(220,38,38,0.15)"; el.style.color = "#FCA5A5"; el.style.borderColor = "#DC2626"; }}
+            onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = "transparent"; el.style.color = "#64748B"; el.style.borderColor = "#1E2D42"; }}
           >
-            <span>🚪</span><span>Logout</span>
+            <span style={{ fontSize: 13 }}>⏻</span><span>Sign Out</span>
           </button>
         </div>
       </aside>
