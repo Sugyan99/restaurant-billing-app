@@ -16,6 +16,25 @@
   --amber: #D97706;
 }
 
+/* Design tokens (8px spacing system, radii, shadows, animation durations) */
+:root {
+  --space-1: 8px;   /* 1 unit (8px) */
+  --space-2: 16px;  /* 2 units */
+  --space-3: 24px;  /* 3 units */
+  --space-4: 32px;  /* 4 units */
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --shadow-sm: 0 2px 6px rgba(0,0,0,0.06);
+  --shadow-md: 0 6px 20px rgba(0,0,0,0.08);
+
+  --anim-fast: 200ms;
+  --anim-medium: 260ms;
+  --anim-ease: cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
 * { box-sizing: border-box; }
 body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: var(--cream); }
 
@@ -330,3 +349,52 @@ table tbody tr:hover { background: #FAFBFF !important; }
 .sidebar-nav::-webkit-scrollbar { width: 3px; }
 .sidebar-nav::-webkit-scrollbar-thumb { background: #3A4A62; border-radius: 3px; }
 .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+
+/* --- Reusable notification badge styles --- */
+.notif-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 8px;
+  background: var(--red);
+  color: white;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  transform-origin: center;
+  transition: transform var(--anim-medium) var(--anim-ease), opacity var(--anim-medium) var(--anim-ease);
+}
+
+.notif-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  transition: transform var(--anim-medium) var(--anim-ease), opacity var(--anim-medium) var(--anim-ease);
+}
+
+.pulse {
+  animation: pulseScale var(--anim-medium) ease;
+}
+@keyframes pulseScale {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+/* Toast show/exit helpers */
+.toast.show {
+  transform: translateX(0) !important;
+  opacity: 1 !important;
+}
+.toast.exit {
+  transform: translateX(8px) !important;
+  opacity: 0 !important;
+}
+
+/* Accessible live region visuals */
+.toast-container { display: flex; flex-direction: column; gap: 8px; }

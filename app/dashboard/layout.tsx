@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ToastContainer } from "@/components/Toast";
 import { AIAssistant } from "@/components/AIAssistant";
+import NotificationBadge from "@/components/NotificationBadge";
 
 const NAV_MAIN: { href: string; icon: string; label: string; badge?: boolean }[] = [
   { href: "/dashboard/home", icon: "🏠", label: "Dashboard" },
@@ -45,12 +46,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [openSections, setOpenSections] = useState<string[]>(["Operations"]);
+  const [openSections, setOpenSections] = useState<string[]>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem("rbd.openSections") : null;
+      return raw ? JSON.parse(raw) : ["Operations"];
+    } catch {
+      return ["Operations"];
+    }
+  });
   const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
   const [query, setQuery] = useState("");
-  const [pendingCount, setPendingCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState<number | undefined>(undefined);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("rbd.openSections", JSON.stringify(openSections));
+    } catch {}
+  }, [openSections]);
 
   useEffect(() => {
     if (query.length < 2) { setResults([]); return; }
@@ -76,7 +90,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }).catch(() => setAllowedPages(["home","tables","orders","bills"]));
       }
     });
-    const loadBadge = () => fetch("/api/orders?status=PENDING").then(r => r.json()).then(d => setPendingCount(d.orders?.length ?? 0));
+    const loadBadge = () => fetch("/api/orders?status=PENDING").then(r => r.json()).then(d => setPendingCount(d.orders?.length ?? 0)).catch(()=>setPendingCount(0));
     loadBadge();
     const iv = setInterval(loadBadge, 20000);
     return () => clearInterval(iv);
@@ -89,7 +103,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const currentPage = allNav.find(n => pathname.startsWith(n.href));
 
-  // Route guard: redirect to home if user navigates to unauthorized page
   useEffect(() => {
     if (!user || allowedPages.includes("*")) return;
     const pageId = pathname.replace("/dashboard/", "").split("/")[0];
@@ -111,64 +124,77 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const hasActive = visible.some(i => pathname.startsWith(i.href));
     return (
       <>
-        <div className="nav-section" style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", paddingRight: 16 }}
-          onClick={() => setOpenSections(prev => isOpen ? prev.filter(s => s !== title) : [...prev, title])}>
+        <div
+          className="nav-section"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpenSections(prev => isOpen ? prev.filter(s => s !== title) : [...prev, title]); }}
+          onClick={() => setOpenSections(prev => isOpen ? prev.filter(s => s !== title) : [...prev, title])}
+          aria-expanded={isOpen}
+          aria-controls={`nav-${title}`}
+          style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", paddingRight: 16 }}
+        >
           <span>{title}</span>
           <span style={{ fontSize: 8, color: hasActive ? "#E8721C" : "#3A4A62" }}>{isOpen ? "▲" : "▼"}</span>
         </div>
-        {isOpen && visible.map(item => (
-          <Link key={item.href} href={item.href}
-            className={`nav-item ${pathname.startsWith(item.href) ? "active" : ""}`}>
-            <span style={{ fontSize: 15 }}>{item.icon}</span>
-            <span style={{ flex: 1 }}>{item.label}</span>
-            {item.badge && pendingCount > 0 && (
-              <span style={{ background: "#DC2626", color: "white", borderRadius: 20, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>
-                {pendingCount}
-              </span>
-            )}
-          </Link>
-        ))}
+        <div id={`nav-${title}`} style={{ transition: "max-height 240ms var(--anim-ease)", overflow: "hidden" }}>
+          {isOpen && visible.map(item => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`nav-item ${active ? "active" : ""}`}
+                aria-current={active ? "page" : undefined}
+              >
+                <span style={{ fontSize: 15 }}>{item.icon}</span>
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {item.badge && (
+                  <NotificationBadge
+                    count={pendingCount}
+                    showDot={pendingCount === 0}
+                    ariaLabel={pendingCount && pendingCount > 0 ? `${pendingCount} pending orders` : "New orders"}
+                  />
+                )}
+              </Link>
+            );
+          })}
+        </div>
       </>
     );
   }
 
   return (
     <div>
-      <aside className="sidebar">
-        <div className="sidebar-logo">
+      <aside className="sidebar" aria-label="Main sidebar">
+        <div className="sidebar-logo" style={{ position: "relative", zIndex: 2 }}>
           <h1>🍽️ RestoBill</h1>
           <p>Restaurant POS</p>
         </div>
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" role="navigation" aria-label="Dashboard navigation">
           <NavSection title="Operations" items={NAV_MAIN} />
           <NavSection title="Management" items={NAV_MANAGE} />
           <NavSection title="Analytics" items={NAV_REPORTS} />
           <NavSection title="Admin" items={NAV_ADMIN} />
         </nav>
 
-        {/* User info + logout */}
-        <div style={{ borderTop: "1px solid #1A2535", padding: "10px 12px" }}>
+        <div style={{ borderTop: "1px solid #1E2D42", padding: "12px 16px" }}>
           {user && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "6px 8px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#E8721C,#C45A0E)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "white", flexShrink: 0 }}>
-                {user.name.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#CBD5E1", lineHeight: 1.2 }}>{user.name}</div>
-                <div style={{ fontSize: 9, color: "#E8721C", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>{user.role}</div>
-              </div>
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#CBD5E1" }}>{user.name}</div>
+              <div style={{ fontSize: 10, color: "#3A4A62", fontWeight: 600 }}>{user.role}</div>
             </div>
           )}
           <button onClick={logout} style={{
-            background: "transparent", border: "1px solid #1E2D42", width: "100%", cursor: "pointer",
-            color: "#64748B", fontSize: 11, padding: "6px 0", borderRadius: 6,
-            display: "flex", alignItems: "center", gap: 6, justifyContent: "center",
-            transition: "all 0.15s", fontWeight: 500,
+            background: "#1E2D42", border: "none", width: "100%", cursor: "pointer",
+            color: "#94A3B8", fontSize: 12, padding: "7px 0", borderRadius: 6,
+            display: "flex", alignItems: "center", gap: 8, justifyContent: "center",
+            transition: "all 0.15s"
           }}
-            onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = "rgba(220,38,38,0.15)"; el.style.color = "#FCA5A5"; el.style.borderColor = "#DC2626"; }}
-            onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = "transparent"; el.style.color = "#64748B"; el.style.borderColor = "#1E2D42"; }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#DC2626"}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "#1E2D42"}
           >
-            <span style={{ fontSize: 13 }}>⏻</span><span>Sign Out</span>
+            <span>🚪</span><span>Logout</span>
           </button>
         </div>
       </aside>
@@ -179,13 +205,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="topbar-title">{currentPage?.icon} {currentPage?.label ?? "Dashboard"}</span>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            {/* Global Search */}
             <div style={{ position: "relative" }}>
               <input value={query} onChange={e => setQuery(e.target.value)}
                 placeholder="🔍 Search..." onBlur={() => setTimeout(() => setQuery(""), 200)}
                 style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, width: 200, outline: "none" }} />
               {results.length > 0 && (
-                <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "white", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 300, zIndex: 999 }}>
+                <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "white", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 320 }}>
                   {results.map((r, i) => (
                     <div key={i} style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9", cursor: "pointer" }}
                       onMouseDown={() => setQuery("")}>
