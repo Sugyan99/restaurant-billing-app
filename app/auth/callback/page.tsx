@@ -12,7 +12,6 @@ export default function AuthCallback() {
 
     async function handleCallback() {
       const params = new URLSearchParams(window.location.search);
-      const code  = params.get("code");
       const error = params.get("error");
       const errorDesc = params.get("error_description");
 
@@ -21,27 +20,28 @@ export default function AuthCallback() {
         return;
       }
 
-      if (!code) {
-        // Maybe tokens are in hash (implicit flow fallback)
-        const { data } = await supabase.auth.getSession();
-        if (data.session) {
-          await upsertProfile(supabase, data.session.user);
-          router.replace("/dashboard/home");
-        } else {
-          router.replace("/login?error=missing_code");
-        }
-        return;
-      }
+      // With implicit flow, Supabase puts tokens in the URL hash.
+      // detectSessionInUrl:true means getSession() parses them automatically.
+      const { data, error: sessionErr } = await supabase.auth.getSession();
 
-      // PKCE exchange
-      const { data, error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchErr || !data.session) {
+      if (sessionErr || !data.session) {
         setMsg("Sign in failed. Redirecting…");
-        router.replace(`/login?error=${encodeURIComponent(exchErr?.message ?? "exchange_failed")}`);
+        router.replace(`/login?error=${encodeURIComponent(sessionErr?.message ?? "no_session")}`);
         return;
       }
 
-      await upsertProfile(supabase, data.session.user);
+      // Upsert profile (best-effort)
+      try {
+        const u = data.session.user;
+        await supabase.from("profiles").upsert({
+          id: u.id,
+          email: u.email ?? "",
+          name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? u.email?.split("@")[0] ?? "User",
+          avatar_url: u.user_metadata?.avatar_url ?? null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" });
+      } catch { /* non-fatal */ }
+
       router.replace("/dashboard/home");
     }
 
@@ -56,7 +56,8 @@ export default function AuthCallback() {
       color: "#fff", gap: 16,
     }}>
       <div style={{
-        width: 40, height: 40, border: "3px solid rgba(232,114,28,0.3)",
+        width: 40, height: 40,
+        border: "3px solid rgba(232,114,28,0.3)",
         borderTopColor: "#E8721C", borderRadius: "50%",
         animation: "spin 0.8s linear infinite",
       }} />
@@ -64,17 +65,4 @@ export default function AuthCallback() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function upsertProfile(supabase: any, user: any) {
-  try {
-    await supabase.from("profiles").upsert({
-      id: user.id,
-      email: user.email ?? "",
-      name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email?.split("@")[0] ?? "User",
-      avatar_url: user.user_metadata?.avatar_url ?? null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "id" });
-  } catch { /* non-fatal */ }
 }
