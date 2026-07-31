@@ -8,58 +8,71 @@ export default function AuthCallback() {
   const [msg, setMsg] = useState("Completing sign in…");
 
   useEffect(() => {
-    const supabase = createClient();
+    async function run() {
+      // 1. Parse tokens from URL hash (implicit flow)
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash || window.location.search);
 
-    async function handleCallback() {
-      const params = new URLSearchParams(window.location.search);
-      const error = params.get("error");
-      const errorDesc = params.get("error_description");
+      const accessToken  = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+      const errorParam   = params.get("error_description") ?? params.get("error");
 
+      if (errorParam) {
+        router.replace(`/login?error=${encodeURIComponent(errorParam)}`);
+        return;
+      }
+
+      if (!accessToken || !refreshToken) {
+        // Try getSession in case Supabase already stored it
+        const supabase = createClient();
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          router.replace("/login?error=no_tokens");
+          return;
+        }
+        await bridgeToJwt(data.session.access_token);
+        return;
+      }
+
+      // 2. Set session in Supabase client (stores in cookies)
+      const supabase = createClient();
+      const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
       if (error) {
-        router.replace(`/login?error=${encodeURIComponent(errorDesc ?? error)}`);
+        router.replace(`/login?error=${encodeURIComponent(error.message)}`);
         return;
       }
 
-      // With implicit flow, Supabase puts tokens in the URL hash.
-      // detectSessionInUrl:true means getSession() parses them automatically.
-      const { data, error: sessionErr } = await supabase.auth.getSession();
-
-      if (sessionErr || !data.session) {
-        setMsg("Sign in failed. Redirecting…");
-        router.replace(`/login?error=${encodeURIComponent(sessionErr?.message ?? "no_session")}`);
-        return;
-      }
-
-      // Upsert profile (best-effort)
-      try {
-        const u = data.session.user;
-        await supabase.from("profiles").upsert({
-          id: u.id,
-          email: u.email ?? "",
-          name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? u.email?.split("@")[0] ?? "User",
-          avatar_url: u.user_metadata?.avatar_url ?? null,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "id" });
-      } catch { /* non-fatal */ }
-
-      router.replace("/dashboard/home");
+      // 3. Bridge to JWT so all existing API routes work
+      await bridgeToJwt(accessToken);
     }
 
-    handleCallback();
+    async function bridgeToJwt(accessToken: string) {
+      setMsg("Setting up your account…");
+      const res = await fetch("/api/auth/google-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken }),
+      });
+      if (res.ok) {
+        router.replace("/dashboard/home");
+      } else {
+        const d = await res.json().catch(() => ({}));
+        router.replace(`/login?error=${encodeURIComponent(d.error ?? "session_failed")}`);
+      }
+    }
+
+    run();
   }, [router]);
 
   return (
     <div style={{
       minHeight: "100vh", display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",
-      background: "linear-gradient(135deg,#080d14,#0f1724)",
-      color: "#fff", gap: 16,
+      background: "linear-gradient(135deg,#080d14,#0f1724)", color: "#fff", gap: 16,
     }}>
       <div style={{
-        width: 40, height: 40,
-        border: "3px solid rgba(232,114,28,0.3)",
-        borderTopColor: "#E8721C", borderRadius: "50%",
-        animation: "spin 0.8s linear infinite",
+        width: 40, height: 40, border: "3px solid rgba(232,114,28,0.3)",
+        borderTopColor: "#E8721C", borderRadius: "50%", animation: "spin 0.8s linear infinite",
       }} />
       <p style={{ color: "#94A3B8", fontSize: 15, margin: 0 }}>{msg}</p>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
