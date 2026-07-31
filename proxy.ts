@@ -25,9 +25,9 @@ export async function proxy(req: NextRequest) {
   }
 
   // 2. Check Supabase session cookie (Google OAuth users)
-  // Supabase stores session in sb-<ref>-auth-token cookie
+  // Supabase stores session as sb-<ref>-auth-token or sb-<ref>-auth-token.0 (chunked)
   const hasSupabaseSession = req.cookies.getAll().some(
-    (c) => c.name.startsWith("sb-") && c.name.endsWith("-auth-token")
+    (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token")
   );
   if (hasSupabaseSession) return NextResponse.next();
 
