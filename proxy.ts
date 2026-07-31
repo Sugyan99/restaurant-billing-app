@@ -1,37 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? "fallback-secret-change-in-production"
-);
-
-export async function proxy(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Only protect dashboard routes
   if (!pathname.startsWith("/dashboard")) return NextResponse.next();
 
-  // 1. Check JWT cookie (email/password users)
-  const token = req.cookies.get("token")?.value;
-  if (token) {
-    try {
-      await jwtVerify(token, JWT_SECRET);
-      return NextResponse.next();
-    } catch {
-      const res = NextResponse.redirect(new URL("/login", req.url));
-      res.cookies.set("token", "", { maxAge: 0, path: "/" });
-      return res;
-    }
-  }
+  // 1. JWT cookie present (email/password OR Google-bridged users)
+  //    Full verification happens in requireAuth on every API call.
+  //    Proxy only checks existence to avoid edge/server JWT library mismatch.
+  const hasJwt = !!req.cookies.get("token")?.value;
+  if (hasJwt) return NextResponse.next();
 
-  // 2. Check Supabase session cookie (Google OAuth users)
-  // Supabase stores session as sb-<ref>-auth-token or sb-<ref>-auth-token.0 (chunked)
-  const hasSupabaseSession = req.cookies.getAll().some(
+  // 2. Supabase session cookie (chunked: sb-*-auth-token, sb-*-auth-token.0, etc.)
+  const hasSupabase = req.cookies.getAll().some(
     (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token")
   );
-  if (hasSupabaseSession) return NextResponse.next();
+  if (hasSupabase) return NextResponse.next();
 
-  // No auth → redirect to login
+  // No auth found → login
   return NextResponse.redirect(new URL("/login", req.url));
 }
 
