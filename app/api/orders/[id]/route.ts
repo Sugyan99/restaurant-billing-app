@@ -39,18 +39,66 @@ export async function PUT(
 
   const { id } = await params;
   const body = await req.json();
-  const { status } = body;
+  const { status, isPriority, kotNote, cancelRequest, cancelApprove, itemKitchens } = body;
 
-  const validStatuses = ["PENDING", "PREPARING", "READY", "SERVED", "CANCELLED"];
-  if (!validStatuses.includes(status)) {
-    return NextResponse.json({ error: "Invalid status" }, { status: 400
-  });
-}
+  // Build update payload
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updateData: Record<string, any> = {};
+
+  // Priority toggle
+  if (isPriority !== undefined) updateData.isPriority = Boolean(isPriority);
+
+  // KOT note
+  if (kotNote !== undefined) updateData.kotNote = kotNote ?? null;
+
+  // Cancel request (any role can request)
+  if (cancelRequest !== undefined) {
+    updateData.cancelRequestedBy = session.userId;
+    updateData.cancelReason = cancelRequest;
+  }
+
+  // Status change
+  if (status) {
+    const validStatuses = ["PENDING", "PREPARING", "READY", "SERVED", "CANCELLED"];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+    // Only OWNER/MANAGER can directly cancel; others must use cancelRequest
+    if (status === "CANCELLED" && !cancelApprove && !["OWNER","MANAGER"].includes(session.role)) {
+      return NextResponse.json({ error: "Manager approval required to cancel" }, { status: 403 });
+    }
+    updateData.status = status;
+    // Clear cancel request on approval
+    if (status === "CANCELLED") {
+      updateData.cancelRequestedBy = null;
+      updateData.cancelReason = null;
+    }
+  }
+
+  if (Object.keys(updateData).length === 0 && !itemKitchens?.length) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  }
 
   const order = await prisma.$transaction(async (tx) => {
+    // Bulk update item kitchen tags
+    if (itemKitchens?.length) {
+      await Promise.all(
+        itemKitchens.map(({ id: itemId, kitchen }: { id: string; kitchen: string }) =>
+          tx.orderItem.update({ where: { id: itemId }, data: { kitchen } })
+        )
+      );
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return tx.order.findUnique({
+        where: { id },
+        include: { table: true, items: { include: { menuItem: true } }, bill: true },
+      });
+    }
+
     const updated = await tx.order.update({
       where: { id },
-      data: { status },
+      data: updateData,
       include: { table: true, items: { include: { menuItem: true } }, bill: true },
     });
 
