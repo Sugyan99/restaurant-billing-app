@@ -5,6 +5,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { showToast } from "@/components/Toast";
 
 const KITCHENS = ["ALL", "MAIN", "GRILL", "BAR", "TANDOOR"];
+const LABEL: React.CSSProperties = { display:"block", fontSize:11, fontWeight:700, color:"#64748B", marginBottom:5, letterSpacing:.4, textTransform:"uppercase" };
+const INPUT: React.CSSProperties = { width:"100%", padding:"8px 10px", borderRadius:8, border:"1px solid #CBD5E1", fontSize:13, boxSizing:"border-box", outline:"none" };
+const QTY_BTN: React.CSSProperties = { width:26, height:26, borderRadius:6, border:"1px solid #E2E8F0", background:"#fff", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", padding:0, lineHeight:1 };
 const STATUS_FLOW: Record<string, string> = { PENDING: "PREPARING", PREPARING: "READY", READY: "SERVED" };
 const S_COLOR  = { PENDING: "#FFF7ED", PREPARING: "#EFF6FF", READY: "#F0FDF4", SERVED: "#F8FAFC", CANCELLED: "#FEF2F2" };
 const S_BORDER = { PENDING: "#FB923C", PREPARING: "#60A5FA", READY: "#4ADE80", SERVED: "#CBD5E1", CANCELLED: "#FCA5A5" };
@@ -40,6 +43,19 @@ export default function OrdersPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [busy, setBusy]             = useState(false);
   const noteRef = useRef<HTMLTextAreaElement>(null);
+  // ── Create KOT state ──
+  const [createModal, setCreateModal] = useState(false);
+  const [kotType, setKotType]         = useState<"DINE_IN"|"TAKEAWAY"|"DELIVERY">("DINE_IN");
+  const [kotTableId, setKotTableId]   = useState("");
+  const [kotCustName, setKotCustName] = useState("");
+  const [kotCustPhone, setKotCustPhone] = useState("");
+  const [kotPriority, setKotPriority] = useState(false);
+  const [kotNote, setKotNote]         = useState("");
+  const [kotCart, setKotCart]         = useState<{menuItemId:string;name:string;price:number;quantity:number;kitchen:string}[]>([]);
+  const [kotCatTab, setKotCatTab]     = useState("all");
+  const [categories, setCategories]   = useState<{id:string;name:string;items:{id:string;name:string;price:number;isVeg:boolean;isAvailable:boolean}[]}[]>([]);
+  const [kotDupe, setKotDupe]         = useState<{id:string;orderNumber:number}|null>(null);
+  const [fullTables, setFullTables]   = useState<{id:string;number:string;status:string}[]>([]);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/orders");
@@ -58,6 +74,12 @@ export default function OrdersPage() {
   useEffect(() => {
     fetch("/api/tables").then(r => r.json()).then(d => setTables(d.tables ?? []));
   }, []);
+
+  useEffect(() => {
+    if (!createModal) return;
+    fetch("/api/categories").then(r=>r.json()).then(d=>setCategories(d.categories??[]));
+    fetch("/api/tables").then(r=>r.json()).then(d=>setFullTables(d.tables??[]));
+  }, [createModal]);
 
   // ── Helpers ──
   function elapsed(createdAt: string) {
@@ -120,6 +142,52 @@ export default function OrdersPage() {
     if (res) { showToast(`#${o.orderNumber} cancelled`); load(); }
   }
 
+  // ── Create KOT helpers ──────────────────────────────────────────────────
+  function resetCreateModal() {
+    setCreateModal(false); setKotType("DINE_IN"); setKotTableId(""); setKotCustName("");
+    setKotCustPhone(""); setKotPriority(false); setKotNote(""); setKotCart([]);
+    setKotCatTab("all"); setKotDupe(null);
+  }
+  function addToKotCart(item: {id:string;name:string;price:number;isAvailable:boolean}) {
+    if (!item.isAvailable) return;
+    setKotCart(prev => {
+      const ex = prev.find(i=>i.menuItemId===item.id);
+      if (ex) return prev.map(i=>i.menuItemId===item.id?{...i,quantity:i.quantity+1}:i);
+      return [...prev, { menuItemId:item.id, name:item.name, price:item.price, quantity:1, kitchen:"" }];
+    });
+  }
+  function updateKotQty(menuItemId:string, delta:number) {
+    setKotCart(prev=>prev.map(i=>i.menuItemId===menuItemId?{...i,quantity:i.quantity+delta}:i).filter(i=>i.quantity>0));
+  }
+  async function submitCreateKOT(force=false) {
+    if (!kotCart.length)                    { showToast("Add at least one item","error"); return; }
+    if (kotType==="DINE_IN" && !kotTableId) { showToast("Select a table","error"); return; }
+    setBusy(true);
+    const res = await fetch("/api/orders", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        type: kotType,
+        tableId: kotTableId || undefined,
+        customerName: kotCustName || undefined,
+        customerPhone: kotCustPhone || undefined,
+        isPriority: kotPriority,
+        kotNote: kotNote || undefined,
+        items: kotCart.map(i=>({ menuItemId:i.menuItemId, quantity:i.quantity, kitchen:i.kitchen||undefined })),
+        force,
+      }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (res.status===409) {
+      setKotDupe({ id:data.existingOrderId, orderNumber:data.existingOrderNumber });
+      return;
+    }
+    if (!res.ok) { showToast(data.error??"Failed","error"); return; }
+    showToast(`KOT #${data.order.orderNumber} created!`);
+    resetCreateModal();
+    load();
+  }
+
   function printKOT(o: Order) {
     const w = window.open("", "_blank", "width=320,height=520");
     if (!w) return;
@@ -177,6 +245,7 @@ ${o.kotNote ? `<p>🗒 ${o.kotNote}</p><hr/>` : ""}
           </p>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          <button className="btn btn-primary btn-sm" onClick={()=>setCreateModal(true)}>+ New KOT</button>
           <button className={`btn btn-sm ${view==="KOT"?"btn-primary":"btn-ghost"}`} onClick={() => setView("KOT")}>🍳 KOT</button>
           <button className={`btn btn-sm ${view==="LIST"?"btn-primary":"btn-ghost"}`} onClick={() => setView("LIST")}>📋 List</button>
         </div>
@@ -462,6 +531,155 @@ ${o.kotNote ? `<p>🗒 ${o.kotNote}</p><hr/>` : ""}
             </button>
             <button className="btn btn-ghost btn-sm" onClick={()=>{setCancelModal(null);setCancelReason("")}} style={{ flex:1 }}>Back</button>
           </div>
+        </Modal>
+      )}
+
+      {/* ── Create KOT Modal ── */}
+      {createModal && (
+        <Modal title="Create KOT" onClose={resetCreateModal}>
+          {/* Duplicate warning */}
+          {kotDupe && (
+            <div style={{ background:"rgba(220,38,38,0.08)", border:"1px solid #FCA5A5", borderRadius:8, padding:"10px 14px", marginBottom:14, fontSize:13, color:"#DC2626" }}>
+              <b>Active KOT #{kotDupe.orderNumber} already on this table.</b>
+              <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                <button className="btn btn-sm" style={{ background:"#DC2626",color:"#fff",border:"none",flex:1,justifyContent:"center" }}
+                  onClick={()=>submitCreateKOT(true)} disabled={busy}>Create Parallel KOT</button>
+                <button className="btn btn-ghost btn-sm" style={{ flex:1,justifyContent:"center" }}
+                  onClick={resetCreateModal}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Order type */}
+          <label style={LABEL}>Order Type</label>
+          <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+            {(["DINE_IN","TAKEAWAY","DELIVERY"] as const).map(t=>(
+              <button key={t} className={`btn btn-sm ${kotType===t?"btn-primary":"btn-ghost"}`}
+                style={{ flex:1, justifyContent:"center", fontSize:11 }}
+                onClick={()=>{ setKotType(t); setKotTableId(""); setKotDupe(null); }}>
+                {t==="DINE_IN"?"🪑 Dine-In":t==="TAKEAWAY"?"🥡 Takeaway":"🛵 Delivery"}
+              </button>
+            ))}
+          </div>
+
+          {/* Table selector (Dine-In only) */}
+          {kotType==="DINE_IN" && (
+            <>
+              <label style={LABEL}>Select Table *</label>
+              {fullTables.length===0
+                ? <p style={{ color:"#94A3B8", fontSize:12, marginBottom:14 }}>Loading tables…</p>
+                : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(68px,1fr))", gap:6, marginBottom:14, maxHeight:130, overflowY:"auto" }}>
+                    {fullTables.map(t=>{
+                      const occ = t.status==="OCCUPIED";
+                      const sel = kotTableId===t.id;
+                      return (
+                        <button key={t.id} onClick={()=>{ setKotTableId(t.id); setKotDupe(null); }}
+                          style={{ padding:"8px 4px", borderRadius:8, textAlign:"center", cursor:"pointer",
+                            border:`2px solid ${sel?"#E8721C":occ?"#FCA5A5":"#E2E8F0"}`,
+                            background:sel?"#FFF7ED":occ?"#FEF2F2":"#fff",
+                            color:sel?"#E8721C":occ?"#DC2626":"#374151", fontWeight:700, fontSize:12 }}>
+                          T{t.number}
+                          <div style={{ fontSize:9, fontWeight:400, marginTop:1, color:occ?"#DC2626":"#94A3B8" }}>
+                            {occ?"Busy":"Free"}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+              }
+            </>
+          )}
+
+          {/* Customer info (Takeaway / Delivery) */}
+          {kotType!=="DINE_IN" && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
+              <div>
+                <label style={LABEL}>Name</label>
+                <input value={kotCustName} onChange={e=>setKotCustName(e.target.value)}
+                  placeholder="Optional" style={INPUT} />
+              </div>
+              <div>
+                <label style={LABEL}>Phone</label>
+                <input value={kotCustPhone} onChange={e=>setKotCustPhone(e.target.value)}
+                  placeholder="Optional" style={INPUT} type="tel" />
+              </div>
+            </div>
+          )}
+
+          {/* Menu category tabs */}
+          <label style={LABEL}>Add Items *</label>
+          <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:8 }}>
+            <button className={`btn btn-sm ${kotCatTab==="all"?"btn-primary":"btn-ghost"}`}
+              onClick={()=>setKotCatTab("all")} style={{ fontSize:11 }}>All</button>
+            {categories.map(c=>(
+              <button key={c.id} className={`btn btn-sm ${kotCatTab===c.id?"btn-primary":"btn-ghost"}`}
+                onClick={()=>setKotCatTab(c.id)} style={{ fontSize:11 }}>{c.name}</button>
+            ))}
+          </div>
+
+          {/* Item list */}
+          <div style={{ maxHeight:168, overflowY:"auto", border:"1px solid #E2E8F0", borderRadius:8, marginBottom:14 }}>
+            {categories.length===0
+              ? <p style={{ color:"#94A3B8", fontSize:12, padding:"12px 16px", margin:0 }}>Loading menu…</p>
+              : (kotCatTab==="all"
+                  ? categories.flatMap(c=>c.items)
+                  : (categories.find(c=>c.id===kotCatTab)?.items??[])
+                ).map(item=>{
+                  const inCart = kotCart.find(i=>i.menuItemId===item.id);
+                  return (
+                    <div key={item.id} style={{ display:"flex", alignItems:"center", padding:"7px 12px",
+                      borderBottom:"1px solid #F1F5F9", opacity:item.isAvailable?1:0.4 }}>
+                      <span style={{ flex:1, fontSize:13 }}>
+                        {item.isVeg ? "🟢" : "🔴"} {item.name}
+                        <span style={{ fontSize:10, color:"#94A3B8", marginLeft:6 }}>₹{item.price}</span>
+                      </span>
+                      {inCart ? (
+                        <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                          <button onClick={()=>updateKotQty(item.id,-1)} style={QTY_BTN}>−</button>
+                          <span style={{ fontSize:13, fontWeight:700, minWidth:18, textAlign:"center" }}>{inCart.quantity}</span>
+                          <button onClick={()=>updateKotQty(item.id,1)} style={{...QTY_BTN,background:"#E8721C",color:"#fff",border:"none"}}>+</button>
+                        </div>
+                      ) : (
+                        <button onClick={()=>addToKotCart(item)} disabled={!item.isAvailable} style={QTY_BTN}>+</button>
+                      )}
+                    </div>
+                  );
+                })
+            }
+          </div>
+
+          {/* Cart summary */}
+          {kotCart.length>0 && (
+            <div style={{ background:"#F8FAFC", borderRadius:8, padding:"8px 12px", marginBottom:12, fontSize:12 }}>
+              {kotCart.map(i=>(
+                <div key={i.menuItemId} style={{ display:"flex", justifyContent:"space-between", padding:"2px 0" }}>
+                  <span>{i.name} ×{i.quantity}</span>
+                  <span style={{ fontWeight:700 }}>₹{(i.price*i.quantity).toFixed(2)}</span>
+                </div>
+              ))}
+              <div style={{ borderTop:"1px dashed #CBD5E1", marginTop:5, paddingTop:5, display:"flex", justifyContent:"space-between", fontWeight:700, fontSize:13 }}>
+                <span>Total</span><span>₹{kotCart.reduce((s,i)=>s+i.price*i.quantity,0).toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Options */}
+          <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:12 }}>
+            <label style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", fontSize:13 }}>
+              <input type="checkbox" checked={kotPriority} onChange={e=>setKotPriority(e.target.checked)} style={{ width:15, height:15 }} />
+              ★ Priority Order
+            </label>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <label style={LABEL}>KOT Note</label>
+            <input value={kotNote} onChange={e=>setKotNote(e.target.value)}
+              placeholder="e.g. Less spicy, no onions…" style={INPUT} maxLength={300} />
+          </div>
+
+          <button className="btn btn-primary" onClick={()=>submitCreateKOT(false)}
+            disabled={busy||!kotCart.length} style={{ width:"100%", justifyContent:"center" }}>
+            {busy?"Creating…":`Create KOT${kotCart.length?` · ${kotCart.length} item${kotCart.length>1?"s":""}`:""}`}
+          </button>
         </Modal>
       )}
     </div>
