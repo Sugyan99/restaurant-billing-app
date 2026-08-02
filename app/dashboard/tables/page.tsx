@@ -28,10 +28,21 @@ export default function TablesPage() {
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showAddTable, setShowAddTable] = useState(false);
   const [newTableNum, setNewTableNum] = useState("");
-  const [discount, setDiscount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
-  const [discounts, setDiscounts] = useState<{id:string;name:string;type:string;value:number}[]>([]);
+  const [discount, setDiscount]             = useState(0);
+  const [loading, setLoading]               = useState(false);
+  const [activeOrder, setActiveOrder]       = useState<Order | null>(null);
+  const [discounts, setDiscounts]           = useState<{id:string;name:string;type:string;value:number}[]>([]);
+  // Advanced POS state
+  const [search, setSearch]                 = useState("");
+  const [coverCount, setCoverCount]         = useState(1);
+  const [kotNote, setKotNote]               = useState("");
+  const [isPriority, setIsPriority]         = useState(false);
+  const [noteTarget, setNoteTarget]         = useState<string | null>(null); // menuItemId with open note
+  const [cashTendered, setCashTendered]     = useState<number | "">("");
+  const [loyaltyPhone, setLoyaltyPhone]     = useState("");
+  const [loyaltyCustomer, setLoyaltyCustomer] = useState<{name:string;phone:string;loyaltyPoints:number;redeemableAmount:number} | null>(null);
+  const [loyaltyDiscount, setLoyaltyDiscount] = useState(0);
+  const [loyaltySearching, setLoyaltySearching] = useState(false);
 
   const loadTables = useCallback(async () => {
     const res = await fetch("/api/tables");
@@ -55,12 +66,10 @@ export default function TablesPage() {
 
   function openTable(table: Table) {
     setSelectedTable(table);
-    setCart([]);
-    setDiscount(0);
-    setActiveCategory("all");
-    const activeOrderOnTable = table.orders?.find(
-      (o) => ["PENDING", "PREPARING", "READY"].includes(o.status)
-    );
+    setCart([]); setDiscount(0); setActiveCategory("all");
+    setSearch(""); setCoverCount(1); setKotNote(""); setIsPriority(false);
+    setNoteTarget(null); setCashTendered(""); setLoyaltyPhone(""); setLoyaltyCustomer(null); setLoyaltyDiscount(0);
+    const activeOrderOnTable = table.orders?.find(o => ["PENDING","PREPARING","READY"].includes(o.status));
     setActiveOrder(activeOrderOnTable ?? null);
     setShowNewOrder(true);
   }
@@ -85,18 +94,42 @@ export default function TablesPage() {
     });
   }
 
-  // Live recalculation via BillingEngine — single source of truth
-  const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const _disc = Math.min(Math.max(0, discount), subtotal);
-  const _taxable = subtotal - _disc;
-  const cgst = parseFloat(((_taxable * 2.5) / 100).toFixed(2));
-  const sgst = parseFloat(((_taxable * 2.5) / 100).toFixed(2));
-  const total = parseFloat((_taxable + cgst + sgst).toFixed(2));
+  function updateItemNote(menuItemId: string, note: string) {
+    setCart(prev => prev.map(i => i.menuItemId === menuItemId ? { ...i, notes: note } : i));
+  }
+
+  async function searchLoyaltyCustomer() {
+    if (!loyaltyPhone.trim()) return;
+    setLoyaltySearching(true); setLoyaltyCustomer(null);
+    const res = await fetch(`/api/loyalty?phone=${encodeURIComponent(loyaltyPhone.trim())}`);
+    setLoyaltySearching(false);
+    if (res.ok) { const d = await res.json(); setLoyaltyCustomer(d.customer); }
+    else { showToast("Customer not found", "error"); }
+  }
+
+  async function redeemLoyaltyPoints(points: number) {
+    const res = await fetch("/api/loyalty", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: loyaltyPhone, points }),
+    });
+    const d = await res.json();
+    if (res.ok) { setLoyaltyDiscount(d.discount); setLoyaltyCustomer(prev => prev ? { ...prev, loyaltyPoints: d.remainingPoints } : null); showToast(d.message); }
+    else showToast(d.error, "error");
+  }
 
   const allItems = categories.flatMap((c) => c.items);
-  const filteredItems = activeCategory === "all" ? allItems : allItems.filter(
+  const filteredItems = (activeCategory === "all" ? allItems : allItems.filter(
     (item) => categories.find((c) => c.id === activeCategory)?.items.some((i) => i.id === item.id)
-  );
+  )).filter(item => !search || item.name.toLowerCase().includes(search.toLowerCase()));
+
+  // Live billing calc
+  const subtotal   = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const _disc      = Math.min(Math.max(0, discount + loyaltyDiscount), subtotal);
+  const _taxable   = subtotal - _disc;
+  const cgst       = parseFloat(((_taxable * 2.5) / 100).toFixed(2));
+  const sgst       = parseFloat(((_taxable * 2.5) / 100).toFixed(2));
+  const total      = parseFloat((_taxable + cgst + sgst).toFixed(2));
+  const change     = typeof cashTendered === "number" ? cashTendered - total : null;
 
   function reprintBill(order: Order) {
     const bill = order.bill;
@@ -131,7 +164,10 @@ export default function TablesPage() {
             tableId: selectedTable?.id,
             customerName: customerName || undefined,
             customerPhone: customerPhone || undefined,
-            items: cart.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity })),
+            coverCount,
+            isPriority,
+            kotNote: kotNote || undefined,
+            items: cart.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, notes: i.notes })),
           }),
         });
         if (!res.ok) throw new Error((await res.json()).error);
@@ -258,21 +294,47 @@ export default function TablesPage() {
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowNewOrder(false)}>
           <div style={{ background: "white", borderRadius: 16, width: "95%", maxWidth: 900, height: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* Modal header */}
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
-                  {selectedTable ? `Table ${selectedTable.number}` : "Takeaway Order"}
-                </h3>
-                {activeOrder && (
-                  <span style={{ fontSize: 12, color: "#E8721C" }}>Order #{activeOrder.orderNumber} is active — adding items</span>
-                )}
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #E2E8F0" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
+                    {selectedTable ? `Table ${selectedTable.number}` : orderType === "DELIVERY" ? "🛵 Delivery" : "🥡 Takeaway"}
+                    {selectedTable && <span style={{ fontSize:12, color:"#94A3B8", fontWeight:400, marginLeft:8 }}>Cap: {selectedTable.capacity}</span>}
+                  </h3>
+                  {activeOrder && <span style={{ fontSize: 12, color: "#E8721C" }}>Order #{activeOrder.orderNumber} active — adding items</span>}
+                </div>
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  {/* Cover count */}
+                  {selectedTable && (
+                    <div style={{ display:"flex", alignItems:"center", gap:5, background:"#F8FAFC", borderRadius:8, padding:"4px 10px", border:"1px solid #E2E8F0" }}>
+                      <span style={{ fontSize:12, color:"#64748B" }}>👥</span>
+                      <button onClick={()=>setCoverCount(c=>Math.max(1,c-1))} style={{ background:"none", border:"none", cursor:"pointer", fontSize:14, color:"#374151", padding:"0 2px" }}>−</button>
+                      <span style={{ fontSize:13, fontWeight:700, minWidth:16, textAlign:"center" }}>{coverCount}</span>
+                      <button onClick={()=>setCoverCount(c=>Math.min(selectedTable.capacity,c+1))} style={{ background:"none", border:"none", cursor:"pointer", fontSize:14, color:"#374151", padding:"0 2px" }}>+</button>
+                    </div>
+                  )}
+                  {/* Priority */}
+                  <button onClick={()=>setIsPriority(v=>!v)}
+                    style={{ background:isPriority?"#FFF7ED":"#F8FAFC", border:`1px solid ${isPriority?"#E8721C":"#E2E8F0"}`,
+                      borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:12, fontWeight:700, color:isPriority?"#E8721C":"#94A3B8" }}>
+                    {isPriority?"★ Priority":"☆ Priority"}
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowNewOrder(false)}>✕</button>
+                </div>
               </div>
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowNewOrder(false)}>✕ Close</button>
+              {/* KOT Note */}
+              <input value={kotNote} onChange={e=>setKotNote(e.target.value)}
+                placeholder="🗒 Kitchen note (optional) — e.g. less spicy, no onions…"
+                style={{ marginTop:8, width:"100%", padding:"6px 10px", borderRadius:7, border:"1px solid #E2E8F0", fontSize:12, outline:"none", boxSizing:"border-box", color:"#374151" }} />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", flex: 1, overflow: "hidden" }}>
               {/* Left: Menu */}
               <div style={{ padding: 16, overflowY: "auto", borderRight: "1px solid #E2E8F0" }}>
+                {/* Search */}
+                <input value={search} onChange={e=>setSearch(e.target.value)}
+                  placeholder="🔍 Search items…"
+                  style={{ width:"100%", padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, outline:"none", marginBottom:10, boxSizing:"border-box" }} />
                 {/* Category tabs */}
                 <div className="category-tabs">
                   <div className={`cat-tab ${activeCategory === "all" ? "active" : ""}`} onClick={() => setActiveCategory("all")}>All</div>
@@ -313,7 +375,7 @@ export default function TablesPage() {
                     <input className="form-input" placeholder="Customer Name" value={customerName}
                       onChange={e => setCustomerName(e.target.value)}
                       style={{ marginBottom: 6, background: "#253045", border: "1px solid #3A4A62", color: "white", fontSize: 12 }} />
-                    <input className="form-input" placeholder="Phone (required)" value={customerPhone}
+                    <input className="form-input" placeholder="Phone" value={customerPhone}
                       onChange={e => setCustomerPhone(e.target.value)}
                       style={{ marginBottom: 6, background: "#253045", border: "1px solid #3A4A62", color: "white", fontSize: 12 }} />
                     {orderType === "DELIVERY" && (
@@ -329,59 +391,114 @@ export default function TablesPage() {
                 </div>
                 <div className="bill-items">
                   {cart.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "30px 0", color: "#94A3B8", fontSize: 13 }}>
-                      Tap menu items to add them
-                    </div>
+                    <div style={{ textAlign: "center", padding: "30px 0", color: "#94A3B8", fontSize: 13 }}>Tap menu items to add them</div>
                   ) : (
                     cart.map((item) => (
-                      <div key={item.menuItemId} className="bill-item">
-                        <span className="bill-item-name">{item.name}</span>
-                        <div className="bill-item-qty">
-                          <button className="qty-btn" onClick={() => updateQty(item.menuItemId, -1)}>−</button>
-                          <span style={{ fontSize: 13, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{item.quantity}</span>
-                          <button className="qty-btn" onClick={() => updateQty(item.menuItemId, 1)}>+</button>
+                      <div key={item.menuItemId}>
+                        <div className="bill-item">
+                          <span className="bill-item-name">{item.name}</span>
+                          <div className="bill-item-qty">
+                            <button className="qty-btn" onClick={() => updateQty(item.menuItemId, -1)}>−</button>
+                            <span style={{ fontSize: 13, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{item.quantity}</span>
+                            <button className="qty-btn" onClick={() => updateQty(item.menuItemId, 1)}>+</button>
+                          </div>
+                          <span className="bill-item-price">₹{(item.price * item.quantity).toFixed(2)}</span>
+                          <button onClick={()=>setNoteTarget(noteTarget===item.menuItemId?null:item.menuItemId)}
+                            style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:item.notes?"#E8721C":"#CBD5E1",padding:"0 4px" }} title="Note">📝</button>
                         </div>
-                        <span className="bill-item-price">₹{(item.price * item.quantity).toFixed(2)}</span>
+                        {noteTarget===item.menuItemId && (
+                          <input value={item.notes??""} onChange={e=>updateItemNote(item.menuItemId,e.target.value)}
+                            placeholder="Note (e.g. no onion)…"
+                            style={{ width:"100%",padding:"4px 8px",fontSize:11,border:"1px solid #3A4A62",borderRadius:5,outline:"none",marginBottom:4,boxSizing:"border-box",background:"#253045",color:"white" }} />
+                        )}
                       </div>
                     ))
                   )}
                 </div>
-                <div className="bill-footer">
-                  <div className="bill-row">
-                    <span>Subtotal</span><span>₹{subtotal.toFixed(2)}</span>
+                {/* Loyalty */}
+                <div style={{ padding:"8px 16px",borderTop:"1px solid #253045",background:"#1E2D42" }}>
+                  <div style={{ display:"flex",gap:6 }}>
+                    <input value={loyaltyPhone} onChange={e=>setLoyaltyPhone(e.target.value)}
+                      onKeyDown={e=>e.key==="Enter"&&searchLoyaltyCustomer()}
+                      placeholder="⭐ Loyalty phone…"
+                      style={{ flex:1,padding:"5px 8px",borderRadius:6,border:"1px solid #3A4A62",background:"#253045",color:"white",fontSize:11,outline:"none" }} />
+                    <button onClick={searchLoyaltyCustomer} disabled={loyaltySearching}
+                      style={{ background:"#E8721C",border:"none",borderRadius:6,padding:"5px 10px",color:"white",fontSize:11,cursor:"pointer",fontWeight:700 }}>
+                      {loyaltySearching?"…":"Go"}
+                    </button>
                   </div>
-                  <div className="bill-row" style={{ alignItems: "center", flexDirection: "column", gap: 4 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-                      <span>Discount</span>
-                      <input type="number" min="0" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} style={{ width: 70, padding: "2px 8px", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 12, textAlign: "right" }} />
+                  {loyaltyCustomer && (
+                    <div style={{ marginTop:6,background:"#253045",borderRadius:7,padding:"6px 10px" }}>
+                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                        <span style={{ color:"#CBD5E1",fontSize:11 }}>{loyaltyCustomer.name}</span>
+                        <span style={{ color:"#E8721C",fontWeight:800,fontSize:12 }}>{loyaltyCustomer.loyaltyPoints} pts</span>
+                      </div>
+                      {loyaltyDiscount>0
+                        ? <div style={{ color:"#4ADE80",fontSize:11,marginTop:3 }}>✅ ₹{loyaltyDiscount} redeemed</div>
+                        : loyaltyCustomer.loyaltyPoints>0 && (
+                          <button onClick={()=>redeemLoyaltyPoints(Math.min(loyaltyCustomer.loyaltyPoints,Math.floor(total)))}
+                            style={{ marginTop:4,width:"100%",padding:"3px 0",background:"none",border:"1px solid #E8721C",borderRadius:5,color:"#E8721C",fontSize:10,cursor:"pointer",fontWeight:700 }}>
+                            Redeem {Math.min(loyaltyCustomer.loyaltyPoints,Math.floor(total))} pts = ₹{(Math.min(loyaltyCustomer.loyaltyPoints,Math.floor(total))*0.1).toFixed(0)} off
+                          </button>
+                        )
+                      }
                     </div>
-                    {discounts.length > 0 && (
-                      <select className="form-select" style={{ fontSize: 11, padding: "2px 6px" }}
-                        onChange={e => {
-                          const d = discounts.find(x => x.id === e.target.value);
-                          if (d) setDiscount(d.type === "PERCENT" ? parseFloat(((subtotal * d.value) / 100).toFixed(2)) : d.value);
-                        }}>
+                  )}
+                </div>
+                <div className="bill-footer">
+                  <div className="bill-row"><span>Subtotal</span><span>₹{subtotal.toFixed(2)}</span></div>
+                  <div className="bill-row" style={{ alignItems:"center",flexDirection:"column",gap:4 }}>
+                    <div style={{ display:"flex",justifyContent:"space-between",width:"100%" }}>
+                      <span>Discount</span>
+                      <input type="number" min="0" value={discount} onChange={(e)=>setDiscount(Number(e.target.value))} style={{ width:70,padding:"2px 8px",border:"1px solid #E2E8F0",borderRadius:6,fontSize:12,textAlign:"right" }} />
+                    </div>
+                    {discounts.length>0 && (
+                      <select className="form-select" style={{ fontSize:11,padding:"2px 6px" }}
+                        onChange={e=>{ const d=discounts.find(x=>x.id===e.target.value); if(d) setDiscount(d.type==="PERCENT"?parseFloat(((subtotal*d.value)/100).toFixed(2)):d.value); }}>
                         <option value="">Quick discounts</option>
-                        {discounts.map(d => <option key={d.id} value={d.id}>{d.name} ({d.type==="PERCENT"?`${d.value}%`:`₹${d.value}`})</option>)}
+                        {discounts.map(d=><option key={d.id} value={d.id}>{d.name} ({d.type==="PERCENT"?`${d.value}%`:`₹${d.value}`})</option>)}
                       </select>
                     )}
                   </div>
+                  {loyaltyDiscount>0 && <div className="bill-row" style={{ color:"#4ADE80" }}><span>Loyalty</span><span>−₹{loyaltyDiscount.toFixed(2)}</span></div>}
                   <div className="bill-row"><span>CGST (2.5%)</span><span>₹{cgst.toFixed(2)}</span></div>
                   <div className="bill-row"><span>SGST (2.5%)</span><span>₹{sgst.toFixed(2)}</span></div>
                   <div className="bill-row total"><span>TOTAL</span><span>₹{total.toFixed(2)}</span></div>
-                  <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <button className="btn btn-primary" style={{ justifyContent: "center" }} onClick={placeOrder} disabled={loading || cart.length === 0}>
-                      {loading ? "Placing..." : activeOrder ? "🍳 Add to KOT" : "🍳 Place Order + KOT"}
+                  {/* Quick pay */}
+                  <div style={{ marginTop:6,paddingTop:6,borderTop:"1px solid #253045" }}>
+                    <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:4 }}>
+                      <span style={{ fontSize:11,color:"#94A3B8" }}>💵</span>
+                      <input type="number" min={0} value={cashTendered}
+                        onChange={e=>setCashTendered(e.target.value===""?"":parseFloat(e.target.value))}
+                        placeholder={`Cash ≥ ₹${total.toFixed(0)}`}
+                        style={{ flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #3A4A62",background:"#253045",color:"white",fontSize:11,outline:"none",textAlign:"right" }} />
+                    </div>
+                    {typeof cashTendered==="number" && cashTendered>=total && (
+                      <div style={{ display:"flex",justifyContent:"space-between",color:"#4ADE80",fontWeight:700,fontSize:13,marginBottom:4 }}>
+                        <span>Change</span><span>₹{(cashTendered-total).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {typeof cashTendered==="number" && cashTendered>0 && cashTendered<total && (
+                      <div style={{ color:"#FCA5A5",fontSize:11,marginBottom:4 }}>⚠ Short ₹{(total-cashTendered).toFixed(2)}</div>
+                    )}
+                    <div style={{ display:"flex",gap:3 }}>
+                      {[100,200,500,1000].filter(v=>v>=total).slice(0,3).map(v=>(
+                        <button key={v} onClick={()=>setCashTendered(v)}
+                          style={{ flex:1,padding:"2px",background:"#253045",border:"1px solid #3A4A62",borderRadius:4,color:"#94A3B8",fontSize:10,cursor:"pointer" }}>₹{v}</button>
+                      ))}
+                      <button onClick={()=>setCashTendered(Math.ceil(total/10)*10)}
+                        style={{ flex:1,padding:"2px",background:"#253045",border:"1px solid #E8721C",borderRadius:4,color:"#E8721C",fontSize:10,cursor:"pointer",fontWeight:700 }}>Exact</button>
+                    </div>
+                  </div>
+                  <div style={{ marginTop:10,display:"flex",flexDirection:"column",gap:8 }}>
+                    <button className="btn btn-primary" style={{ justifyContent:"center" }} onClick={placeOrder} disabled={loading||cart.length===0}>
+                      {loading?"Placing…":activeOrder?"🍳 Add to KOT":`🍳 KOT${isPriority?" ★":""}`}
                     </button>
                     {activeOrder && !activeOrder.bill && (
-                      <button className="btn btn-success" style={{ justifyContent: "center" }} onClick={generateBill} disabled={loading}>
-                        🧾 Generate Bill
-                      </button>
+                      <button className="btn btn-success" style={{ justifyContent:"center" }} onClick={generateBill} disabled={loading}>🧾 Generate Bill</button>
                     )}
                     {activeOrder?.bill && (
-                      <button className="btn btn-ghost" style={{ justifyContent: "center" }} onClick={() => reprintBill(activeOrder)}>
-                        🖨️ Reprint Bill
-                      </button>
+                      <button className="btn btn-ghost" style={{ justifyContent:"center" }} onClick={()=>reprintBill(activeOrder)}>🖨️ Reprint Bill</button>
                     )}
                   </div>
                 </div>

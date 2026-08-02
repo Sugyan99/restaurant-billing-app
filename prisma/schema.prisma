@@ -57,15 +57,16 @@ enum ExpenseCategory {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         Role     @default(CASHIER)
-  phone        String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  ordersCreated Order[] @relation("OrderCreatedBy")
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  passwordHash    String
+  role            Role     @default(CASHIER)
+  phone           String?
+  kitchenStation  String?  // "MAIN" | "GRILL" | "BAR" | "TANDOOR" — for KITCHEN role only
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  ordersCreated   Order[]  @relation("OrderCreatedBy")
 }
 
 model RestaurantTable {
@@ -136,6 +137,7 @@ model Order {
   kotNote              String?
   cancelRequestedBy    String?
   cancelReason         String?
+  coverCount           Int             @default(1)
 }
 
 model OrderItem {

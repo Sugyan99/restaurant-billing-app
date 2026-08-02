@@ -17,13 +17,14 @@ type OItem = { id: string; quantity: number; price: number; notes?: string; kitc
 type Order = {
   id: string; orderNumber: number; status: string; type: string; createdAt: string;
   isPriority: boolean; kotNote?: string; cancelRequestedBy?: string; cancelReason?: string;
+  coverCount?: number;
   customerName?: string; table?: { id: string; number: string };
   items: OItem[];
   bill?: { paymentStatus: string; total: number };
 };
 
 export default function OrdersPage() {
-  const { user, isOwner } = useCurrentUser();
+  const { user, isOwner, kitchenStation } = useCurrentUser();
   const isManager = isOwner || user?.role === "MANAGER";
   const [orders, setOrders]         = useState<Order[]>([]);
   const [filter, setFilter]         = useState<string>("ACTIVE");
@@ -56,6 +57,23 @@ export default function OrdersPage() {
   const [categories, setCategories]   = useState<{id:string;name:string;items:{id:string;name:string;price:number;isVeg:boolean;isAvailable:boolean}[]}[]>([]);
   const [kotDupe, setKotDupe]         = useState<{id:string;orderNumber:number}|null>(null);
   const [fullTables, setFullTables]   = useState<{id:string;number:string;status:string}[]>([]);
+
+  // ── Kitchen Station Routing ──────────────────────────────────────────────
+  // If KITCHEN role with a station assigned → auto-filter to their station
+  const myStation = user?.role === "KITCHEN" && kitchenStation ? kitchenStation : null;
+
+  // Auto-apply kitchen filter for kitchen staff
+  useEffect(() => {
+    if (myStation) setKitchenF(myStation);
+  }, [myStation]);
+
+  // Filter items per order to only show relevant items for kitchen station
+  function visibleItems(order: Order): OItem[] {
+    if (!myStation) return order.items;
+    const stationItems = order.items.filter(i => i.kitchen === myStation);
+    // If no items tagged for this station yet, show all (so kitchen doesn't miss untagged items)
+    return stationItems.length > 0 ? stationItems : order.items;
+  }
 
   const load = useCallback(async () => {
     const res = await fetch("/api/orders");
@@ -251,9 +269,27 @@ ${o.kotNote ? `<p>🗒 ${o.kotNote}</p><hr/>` : ""}
         </div>
       </div>
 
+      {/* Kitchen station banner */}
+      {myStation && (
+        <div style={{ background:"linear-gradient(135deg,#1A2232,#253045)", borderRadius:10, padding:"10px 16px", marginBottom:14, display:"flex", alignItems:"center", gap:12 }}>
+          <span style={{ fontSize:20 }}>👨‍🍳</span>
+          <div>
+            <div style={{ color:"#fff", fontWeight:800, fontSize:14 }}>
+              {myStation} Kitchen Station
+            </div>
+            <div style={{ color:"#64748B", fontSize:12 }}>
+              Showing only your station&apos;s items · Items without a tag are shown to all stations
+            </div>
+          </div>
+          <span style={{ marginLeft:"auto", background:"#E8721C", color:"#fff", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700 }}>
+            {myStation}
+          </span>
+        </div>
+      )}
+
       {/* Status filter tabs */}
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
-        {[["ACTIVE","Active"],["PENDING","Pending"],["PREPARING","Preparing"],["READY","Ready"],["PRIORITY","⭐ Priority"],["CANCEL_REQ",`🚫 Cancel${cancelReqs>0?` (${cancelReqs})`:""}]`],["ALL","All"]].map(([val,label]) => (
+        {[["ACTIVE","Active"],["PENDING","Pending"],["PREPARING","Preparing"],["READY","Ready"],["PRIORITY","Priority"],["CANCEL_REQ", cancelReqs>0 ? `Cancel (${cancelReqs})` : "Cancel Req"],["ALL","All"]].map(([val,label]) => (
           <button key={val} className={`btn btn-sm ${filter===val?"btn-primary":"btn-ghost"}`}
             onClick={() => setFilter(val)}
             style={val==="CANCEL_REQ" && cancelReqs>0 ? { borderColor:"#DC2626", color:"#DC2626" } : {}}>
@@ -328,7 +364,7 @@ ${o.kotNote ? `<p>🗒 ${o.kotNote}</p><hr/>` : ""}
 
                 {/* Items */}
                 <div style={{ padding:"8px 14px", maxHeight:160, overflowY:"auto" }}>
-                  {o.items.map(item => (
+                  {visibleItems(o).map(item => (
                     <div key={item.id} style={{ padding:"4px 0", borderBottom:"1px dashed rgba(0,0,0,0.07)" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:13 }}>
                         <span style={{ flex:1 }}>{item.menuItem.name}</span>
