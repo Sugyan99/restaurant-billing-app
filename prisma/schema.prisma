@@ -128,6 +128,7 @@ model Order {
   customerName  String?
   customerPhone String?
   items         OrderItem[]
+  kotTickets    KotTicket[]
   bill          Bill?
   createdById   String
   createdBy     User            @relation("OrderCreatedBy", fields: [createdById], references: [id])
@@ -141,16 +142,17 @@ model Order {
 }
 
 model OrderItem {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   orderId    String
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order      Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItemId String
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
-  quantity   Int      @default(1)
+  menuItem   MenuItem        @relation(fields: [menuItemId], references: [id])
+  quantity   Int             @default(1)
   price      Float
   taxRate    Float?
   notes      String?
   kitchen    String?
+  kotLines   KotTicketLine[]
 }
 
 model Bill {
@@ -324,4 +326,51 @@ model PurchaseOrderItem {
   unit            String        @default("kg")
   costPerUnit     Float         @default(0)
   total           Float         @default(0)
+}
+
+// ─── KOT / KDS ───────────────────────────────────────────────────────────────
+
+enum KotTicketStatus {
+  PENDING
+  SENT
+  PLATED
+  VOIDED
+}
+
+enum KotLineStatus {
+  PENDING
+  SENT
+  VOIDED
+}
+
+model KotTicket {
+  id        String          @id @default(cuid())
+  orderId   String
+  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  station   String
+  status    KotTicketStatus @default(PENDING)
+  voidedAt  DateTime?
+  voidedBy  String?
+  lines     KotTicketLine[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([orderId])
+  @@index([station, status])
+}
+
+model KotTicketLine {
+  id          String        @id @default(cuid())
+  ticketId    String
+  ticket      KotTicket     @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  orderItemId String
+  orderItem   OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  quantity    Int
+  qtySent     Int           @default(0)
+  status      KotLineStatus @default(PENDING)
+  voidedAt    DateTime?
+  voidedBy    String?
+
+  @@index([ticketId])
+  @@index([orderItemId])
 }
