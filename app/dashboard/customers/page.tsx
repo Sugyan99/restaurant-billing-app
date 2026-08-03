@@ -2,6 +2,8 @@
 import { DeleteButton } from "@/components/DeleteButton";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useState, useEffect, useCallback } from "react";
+import { PageTabs } from "@/components/PageTabs";
+import LoyaltyPage from "@/app/dashboard/loyalty/page";
 import { showToast } from "@/components/Toast";
 
 type Customer = {
@@ -12,6 +14,17 @@ type Customer = {
 const EMPTY = { name: "", phone: "", email: "", address: "" };
 
 export default function CustomersPage() {
+  return (
+    <PageTabs tabs={[
+      { id: "customers", label: "Customers",       icon: "👤" },
+      { id: "loyalty",   label: "Loyalty Program", icon: "⭐" },
+    ]}>
+      {tab => tab === "loyalty" ? <LoyaltyPage /> : <CustomersContent />}
+    </PageTabs>
+  );
+}
+
+function CustomersContent() {
   const { isOwner } = useCurrentUser();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");

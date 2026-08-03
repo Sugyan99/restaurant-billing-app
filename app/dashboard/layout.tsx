@@ -6,71 +6,76 @@ import { ToastContainer } from "@/components/Toast";
 import { AIAssistant } from "@/components/AIAssistant";
 import NotificationBadge from "@/components/NotificationBadge";
 
-const NAV_MAIN: { href: string; icon: string; label: string; badge?: boolean }[] = [
-  { href: "/dashboard/home", icon: "🏠", label: "Dashboard" },
-  { href: "/dashboard/tables", icon: "🪑", label: "Tables & POS" },
-  { href: "/dashboard/orders", icon: "🍳", label: "Kitchen / KOT", badge: true },
-  { href: "/dashboard/bills", icon: "🧾", label: "Bills & Payments" },
-];
-const NAV_MANAGE: { href: string; icon: string; label: string; badge?: boolean }[] = [
-  { href: "/dashboard/menu", icon: "🍽️", label: "Menu" },
-  { href: "/dashboard/inventory", icon: "📦", label: "Inventory" },
-  { href: "/dashboard/purchase-orders", icon: "🛒", label: "Purchase Orders" },
-  { href: "/dashboard/delivery", icon: "🛵", label: "Delivery & Takeaway" },
-  { href: "/dashboard/reservations", icon: "📅", label: "Reservations" },
-  { href: "/dashboard/customers", icon: "👤", label: "Customers" },
-  { href: "/dashboard/loyalty", icon: "⭐", label: "Loyalty Program" },
-  { href: "/dashboard/discounts", icon: "🏷️", label: "Discounts" },
-  { href: "/dashboard/qr", icon: "📱", label: "Table QR Codes" },
-  { href: "/dashboard/import", icon: "⬆️", label: "Import Menu" },
-  { href: "/dashboard/stock-ledger", icon: "📊", label: "Stock Ledger" },
-  { href: "/dashboard/expenses", icon: "💰", label: "Expenses" },
-  { href: "/dashboard/day-close", icon: "🔒", label: "Day Close" },
-];
-const NAV_REPORTS: { href: string; icon: string; label: string; badge?: boolean }[] = [
-  { href: "/dashboard/reports", icon: "📊", label: "Sales Reports" },
-  { href: "/dashboard/gst-report", icon: "🧾", label: "GST Report" },
-  { href: "/dashboard/staff-report", icon: "👨‍💼", label: "Staff Performance" },
-  { href: "/dashboard/pnl", icon: "💹", label: "P&L Statement" },
-];
-const NAV_ADMIN: { href: string; icon: string; label: string; badge?: boolean }[] = [
-  { href: "/dashboard/users", icon: "👥", label: "Staff" },
-  { href: "/dashboard/permissions", icon: "🔑", label: "Permissions" },
-  { href: "/dashboard/data-management", icon: "🗃️", label: "Data Management" },
-  { href: "/dashboard/settings", icon: "⚙️", label: "Settings" },
+// ── Merged nav: fewer items, grouped logically ──────────────────────────────
+const NAV: { title: string; items: { href: string; icon: string; label: string; badge?: boolean }[] }[] = [
+  {
+    title: "Operations",
+    items: [
+      { href: "/dashboard/home",           icon: "🏠", label: "Dashboard" },
+      { href: "/dashboard/tables",         icon: "🪑", label: "Tables & POS" },
+      { href: "/dashboard/orders",         icon: "🍳", label: "Kitchen / KOT", badge: true },
+      { href: "/dashboard/bills",          icon: "🧾", label: "Bills & Payments" },
+      { href: "/dashboard/delivery",       icon: "🛵", label: "Delivery & Takeaway" },
+      { href: "/dashboard/reservations",   icon: "📅", label: "Reservations" },
+    ],
+  },
+  {
+    title: "Management",
+    items: [
+      { href: "/dashboard/menu",           icon: "🍽️", label: "Menu & Import" },
+      { href: "/dashboard/inventory",      icon: "📦", label: "Inventory & Stock" },
+      { href: "/dashboard/purchase-orders",icon: "🛒", label: "Purchase Orders" },
+      { href: "/dashboard/customers",      icon: "👤", label: "Customers & Loyalty" },
+      { href: "/dashboard/finance",        icon: "💰", label: "Finance" },
+    ],
+  },
+  {
+    title: "Analytics",
+    items: [
+      { href: "/dashboard/reports",        icon: "📊", label: "Sales Reports" },
+      { href: "/dashboard/gst-report",     icon: "🧾", label: "GST Report" },
+      { href: "/dashboard/staff-report",   icon: "👨‍💼", label: "Staff Performance" },
+      { href: "/dashboard/pnl",            icon: "💹", label: "P&L Statement" },
+    ],
+  },
+  {
+    title: "Admin",
+    items: [
+      { href: "/dashboard/users",          icon: "👥", label: "Staff" },
+      { href: "/dashboard/permissions",    icon: "🔑", label: "Permissions" },
+      { href: "/dashboard/settings",       icon: "⚙️",  label: "Settings & QR" },
+      { href: "/dashboard/data-management",icon: "🗃️", label: "Data Management" },
+    ],
+  },
 ];
 
-const allNav = [...NAV_MAIN, ...NAV_MANAGE, ...NAV_REPORTS, ...NAV_ADMIN];
+const allNav = NAV.flatMap(g => g.items);
 
 type User = { name: string; role: string };
 type SearchResult = { type: string; label: string; sub: string; id: string };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [openSections, setOpenSections] = useState<string[]>(() => {
-    try {
-      const raw = typeof window !== "undefined" ? window.localStorage.getItem("rbd.openSections") : null;
-      return raw ? JSON.parse(raw) : ["Operations"];
-    } catch {
-      return ["Operations"];
-    }
-  });
+  const router   = useRouter();
+  const [user, setUser]               = useState<User | null>(null);
   const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
-  const [query, setQuery] = useState("");
+  const [openSection, setOpenSection] = useState<string>(() => {
+    // Auto-open the section that contains the current page
+    return "Operations";
+  });
+  const [query, setQuery]             = useState("");
   const [pendingCount, setPendingCount] = useState<number | undefined>(undefined);
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifs, setNotifs] = useState<{id:string;title:string;message:string;type:string;isRead:boolean;createdAt:string}[]>([]);
-  const [unread, setUnread] = useState(0);
+  const [results, setResults]         = useState<SearchResult[]>([]);
+  const [searching, setSearching]     = useState(false);
+  const [notifOpen, setNotifOpen]     = useState(false);
+  const [notifs, setNotifs]           = useState<{id:string;title:string;message:string;type:string;isRead:boolean;createdAt:string}[]>([]);
+  const [unread, setUnread]           = useState(0);
 
+  // Auto-open section containing current route
   useEffect(() => {
-    try {
-      window.localStorage.setItem("rbd.openSections", JSON.stringify(openSections));
-    } catch {}
-  }, [openSections]);
+    const active = NAV.find(g => g.items.some(i => pathname.startsWith(i.href)));
+    if (active) setOpenSection(active.title);
+  }, [pathname]);
 
   useEffect(() => {
     if (query.length < 2) { setResults([]); return; }
@@ -96,8 +101,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }).catch(() => setAllowedPages(["home","tables","orders","bills"]));
       }
     });
-    const loadBadge = () => fetch("/api/orders?status=PENDING").then(r => r.json()).then(d => setPendingCount(d.orders?.length ?? 0)).catch(()=>setPendingCount(0));
-    const loadNotifs = () => fetch("/api/notifications").then(r => r.json()).then(d => { setNotifs(d.notifications ?? []); setUnread(d.unreadCount ?? 0); }).catch(()=>{});
+    const loadBadge = () => fetch("/api/orders?status=PENDING").then(r => r.json()).then(d => setPendingCount(d.orders?.length ?? 0)).catch(() => setPendingCount(0));
+    const loadNotifs = () => fetch("/api/notifications").then(r => r.json()).then(d => { setNotifs(d.notifications ?? []); setUnread(d.unreadCount ?? 0); }).catch(() => {});
     loadBadge(); loadNotifs();
     const iv = setInterval(() => { loadBadge(); loadNotifs(); }, 20000);
     return () => clearInterval(iv);
@@ -105,8 +110,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   async function markAllRead() {
     await fetch("/api/notifications", { method: "PUT" });
-    setUnread(0);
-    setNotifs(prev => prev.map(n => ({ ...n, isRead: true })));
+    setUnread(0); setNotifs(prev => prev.map(n => ({ ...n, isRead: true })));
   }
 
   async function logout() {
@@ -114,87 +118,94 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push("/login");
   }
 
-  const currentPage = allNav.find(n => pathname.startsWith(n.href));
-
-  useEffect(() => {
-    if (!user || allowedPages.includes("*")) return;
-    const pageId = pathname.replace("/dashboard/", "").split("/")[0];
-    if (pageId && pageId !== "home" && !allowedPages.includes(pageId)) {
-      router.push("/dashboard/home");
-    }
-  }, [pathname, allowedPages, user, router]);
-
   function canAccess(href: string) {
     if (allowedPages.includes("*")) return true;
     const pageId = href.replace("/dashboard/", "");
     return allowedPages.includes(pageId);
   }
 
-  function NavSection({ title, items }: { title: string; items: { href: string; icon: string; label: string; badge?: boolean }[] }) {
-    const visible = items.filter(i => canAccess(i.href));
-    if (visible.length === 0) return null;
-    const isOpen = openSections.includes(title);
-    const hasActive = visible.some(i => pathname.startsWith(i.href));
-    return (
-      <>
-        <div
-          className="nav-section"
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpenSections(prev => isOpen ? prev.filter(s => s !== title) : [...prev, title]); }}
-          onClick={() => setOpenSections(prev => isOpen ? prev.filter(s => s !== title) : [...prev, title])}
-          aria-expanded={isOpen}
-          aria-controls={`nav-${title}`}
-          style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", paddingRight: 16 }}
-        >
-          <span>{title}</span>
-          <span style={{ fontSize: 8, color: hasActive ? "#E8721C" : "#3A4A62" }}>{isOpen ? "▲" : "▼"}</span>
-        </div>
-        <div id={`nav-${title}`} style={{ transition: "max-height 240ms var(--anim-ease)", overflow: "hidden" }}>
-          {isOpen && visible.map(item => {
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`nav-item ${active ? "active" : ""}`}
-                aria-current={active ? "page" : undefined}
-              >
-                <span style={{ fontSize: 15 }}>{item.icon}</span>
-                <span style={{ flex: 1 }}>{item.label}</span>
-                {item.badge && (
-                  <NotificationBadge
-                    count={pendingCount}
-                    showDot={pendingCount === 0}
-                    ariaLabel={pendingCount && pendingCount > 0 ? `${pendingCount} pending orders` : "New orders"}
-                  />
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      </>
-    );
-  }
+  useEffect(() => {
+    if (!user || allowedPages.includes("*")) return;
+    const pageId = pathname.replace("/dashboard/", "").split("/")[0];
+    if (pageId && pageId !== "home" && !allowedPages.includes(pageId)) router.push("/dashboard/home");
+  }, [pathname, allowedPages, user, router]);
+
+  const currentPage = allNav.find(n => pathname.startsWith(n.href));
 
   return (
     <div>
       <aside className="sidebar" aria-label="Main sidebar">
-        <div className="sidebar-logo" style={{ position: "relative", zIndex: 2 }}>
+        {/* Logo */}
+        <div className="sidebar-logo">
           <h1>🍽️ RestoBill</h1>
           <p>Restaurant POS</p>
         </div>
-        <nav className="sidebar-nav" role="navigation" aria-label="Dashboard navigation">
-          <NavSection title="Operations" items={NAV_MAIN} />
-          <NavSection title="Management" items={NAV_MANAGE} />
-          <NavSection title="Analytics" items={NAV_REPORTS} />
-          <NavSection title="Admin" items={NAV_ADMIN} />
+
+        {/* Nav — scrollable, single-open accordion */}
+        <nav className="sidebar-nav" style={{ overflowY: "auto", flex: 1 }} role="navigation">
+          {NAV.map(group => {
+            const visible = group.items.filter(i => canAccess(i.href));
+            if (visible.length === 0) return null;
+            const isOpen   = openSection === group.title;
+            const hasActive = visible.some(i => pathname.startsWith(i.href));
+
+            return (
+              <div key={group.title}>
+                {/* Section header */}
+                <button
+                  onClick={() => setOpenSection(isOpen ? "" : group.title)}
+                  aria-expanded={isOpen}
+                  style={{
+                    width: "100%", background: "none", border: "none", cursor: "pointer",
+                    padding: "9px 16px", display: "flex", justifyContent: "space-between",
+                    alignItems: "center", color: hasActive ? "#E8721C" : "#4A5A72",
+                    fontSize: 10, fontWeight: 700, letterSpacing: .7, textTransform: "uppercase",
+                    borderLeft: hasActive && !isOpen ? "2px solid #E8721C" : "2px solid transparent",
+                    transition: "all .15s",
+                  }}
+                >
+                  <span>{group.title}</span>
+                  <span style={{ fontSize: 9, opacity: .6 }}>{isOpen ? "▲" : "▼"}</span>
+                </button>
+
+                {/* Items — animated slide */}
+                <div style={{
+                  maxHeight: isOpen ? `${visible.length * 44}px` : "0px",
+                  overflow: "hidden",
+                  transition: "max-height 220ms ease",
+                }}>
+                  {visible.map(item => {
+                    const active = pathname.startsWith(item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`nav-item ${active ? "active" : ""}`}
+                        aria-current={active ? "page" : undefined}
+                      >
+                        <span style={{ fontSize: 15 }}>{item.icon}</span>
+                        <span style={{ flex: 1 }}>{item.label}</span>
+                        {item.badge && (
+                          <NotificationBadge
+                            count={pendingCount}
+                            showDot={pendingCount === 0}
+                            ariaLabel={`${pendingCount ?? 0} pending orders`}
+                          />
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
-        <div style={{ borderTop: "1px solid #1E2D42", padding: "12px 16px" }}>
+        {/* User + logout */}
+        <div style={{ borderTop: "1px solid #1E2D42", padding: "12px 16px", flexShrink: 0 }}>
           {user && (
             <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#CBD5E1" }}>{user.name}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#CBD5E1", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.name}</div>
               <div style={{ fontSize: 10, color: "#3A4A62", fontWeight: 600 }}>{user.role}</div>
             </div>
           )}
@@ -202,7 +213,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             background: "#1E2D42", border: "none", width: "100%", cursor: "pointer",
             color: "#94A3B8", fontSize: 12, padding: "7px 0", borderRadius: 6,
             display: "flex", alignItems: "center", gap: 8, justifyContent: "center",
-            transition: "all 0.15s"
+            transition: "all 0.15s",
           }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#DC2626"}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "#1E2D42"}
@@ -212,38 +223,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
+      {/* Main content */}
       <main className="main-content">
         <div className="topbar">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span className="topbar-title">{currentPage?.icon} {currentPage?.label ?? "Dashboard"}</span>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            {/* Search */}
             <div style={{ position: "relative" }}>
-              <input value={query} onChange={e => setQuery(e.target.value)}
-                placeholder="🔍 Search..." onBlur={() => setTimeout(() => setQuery(""), 200)}
+              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="🔍 Search..."
+                onBlur={() => setTimeout(() => setQuery(""), 200)}
                 style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, width: 200, outline: "none" }} />
-              {results.length > 0 && (
-                <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "white", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 320 }}>
+              {(searching || results.length > 0) && (
+                <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "white", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 320, zIndex: 300 }}>
+                  {searching && <div style={{ padding: "12px 16px", fontSize: 12, color: "#94A3B8" }}>Searching…</div>}
                   {results.map((r, i) => (
-                    <div key={i} style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9", cursor: "pointer" }}
-                      onMouseDown={() => setQuery("")}>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>{r.label}</div>
+                    <div key={i} style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9", cursor: "pointer", fontSize: 12 }} onMouseDown={() => setQuery("")}>
+                      <div style={{ fontWeight: 600 }}>{r.label}</div>
                       <div style={{ fontSize: 11, color: "#64748B" }}>{r.type} · {r.sub}</div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
+
             <span style={{ fontSize: 12, color: "#94A3B8" }}>
               {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
             </span>
-            {/* Notification Bell */}
+
+            {/* Notifications */}
             <div style={{ position: "relative" }}>
-              <button
-                onClick={() => { setNotifOpen(o => !o); if (!notifOpen && unread > 0) markAllRead(); }}
-                style={{ background: "none", border: "1px solid #E2E8F0", borderRadius: 8, padding: "5px 9px", cursor: "pointer", fontSize: 16, position: "relative", display: "flex", alignItems: "center" }}
-                title="Notifications"
-              >
+              <button onClick={() => { setNotifOpen(o => !o); if (!notifOpen && unread > 0) markAllRead(); }}
+                style={{ background: "none", border: "1px solid #E2E8F0", borderRadius: 8, padding: "5px 9px", cursor: "pointer", fontSize: 16, position: "relative", display: "flex", alignItems: "center" }}>
                 🔔
                 {unread > 0 && (
                   <span style={{ position: "absolute", top: -4, right: -4, background: "#DC2626", color: "white", borderRadius: "50%", fontSize: 9, fontWeight: 800, width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -258,23 +270,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <button onClick={markAllRead} style={{ background: "none", border: "none", fontSize: 11, color: "#E8721C", cursor: "pointer", fontWeight: 600 }}>Mark all read</button>
                   </div>
                   <div style={{ maxHeight: 340, overflowY: "auto" }}>
-                    {notifs.length === 0 ? (
-                      <div style={{ padding: "24px 16px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>No notifications</div>
-                    ) : notifs.map(n => (
-                      <div key={n.id} style={{ padding: "10px 16px", borderBottom: "1px solid #F8FAFC", background: n.isRead ? "white" : "#FFF7ED", display: "flex", gap: 10, alignItems: "flex-start" }}>
-                        <span style={{ fontSize: 16, flexShrink: 0 }}>{n.type === "ERROR" ? "🔴" : n.type === "SUCCESS" ? "✅" : n.type === "WARNING" ? "⚠️" : "ℹ️"}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 2 }}>{n.title}</div>
-                          <div style={{ fontSize: 11, color: "#64748B", lineHeight: 1.4 }}>{n.message}</div>
-                          <div style={{ fontSize: 10, color: "#CBD5E1", marginTop: 4 }}>{new Date(n.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</div>
+                    {notifs.length === 0
+                      ? <div style={{ padding: "24px 16px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>No notifications</div>
+                      : notifs.map(n => (
+                        <div key={n.id} style={{ padding: "10px 16px", borderBottom: "1px solid #F8FAFC", background: n.isRead ? "white" : "#FFF7ED", display: "flex", gap: 10, alignItems: "flex-start" }}>
+                          <span style={{ fontSize: 16, flexShrink: 0 }}>{n.type==="ERROR"?"🔴":n.type==="SUCCESS"?"✅":n.type==="WARNING"?"⚠️":"ℹ️"}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 2 }}>{n.title}</div>
+                            <div style={{ fontSize: 11, color: "#64748B", lineHeight: 1.4 }}>{n.message}</div>
+                            <div style={{ fontSize: 10, color: "#CBD5E1", marginTop: 4 }}>{new Date(n.createdAt).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</div>
+                          </div>
+                          {!n.isRead && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E8721C", flexShrink: 0, marginTop: 4 }} />}
                         </div>
-                        {!n.isRead && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E8721C", flexShrink: 0, marginTop: 4 }} />}
-                      </div>
-                    ))}
+                      ))
+                    }
                   </div>
                 </div>
               )}
             </div>
+
             {user && (
               <div style={{ background: "#FFF0E5", border: "1px solid #FDBA74", borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 700, color: "#E8721C" }}>
                 {user.role}
@@ -282,6 +296,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
           </div>
         </div>
+
         <div className="page-body">{children}</div>
       </main>
 

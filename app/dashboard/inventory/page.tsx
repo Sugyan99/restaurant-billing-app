@@ -1,12 +1,25 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
+import { PageTabs } from "@/components/PageTabs";
+import StockLedgerPage from "@/app/dashboard/stock-ledger/page";
 
 type Item = { id: string; name: string; unit: string; currentStock: number; minStock: number; costPerUnit: number };
 const EMPTY = { name: "", unit: "kg", currentStock: 0, minStock: 1, costPerUnit: 0 };
 const UNITS = ["kg", "g", "L", "ml", "pcs", "dozen", "box", "bag"];
 
 export default function InventoryPage() {
+  return (
+    <PageTabs tabs={[
+      { id: "inventory", label: "Inventory",    icon: "📦" },
+      { id: "ledger",    label: "Stock Ledger", icon: "📒" },
+    ]}>
+      {tab => tab === "ledger" ? <StockLedgerPage /> : <InventoryContent />}
+    </PageTabs>
+  );
+}
+
+function InventoryContent() {
   const [items, setItems] = useState<Item[]>([]);
   const [lowStock, setLowStock] = useState<Item[]>([]);
   const [showModal, setShowModal] = useState(false);

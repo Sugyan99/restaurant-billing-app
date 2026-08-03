@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { showToast } from "@/components/Toast";
+import { PageTabs } from "@/components/PageTabs";
+import QRPage from "@/app/dashboard/qr/page";
 
 type Settings = {
   id: string; restaurantName: string; address?: string; gstNumber?: string;
@@ -9,6 +11,17 @@ type Settings = {
 };
 
 export default function SettingsPage() {
+  return (
+    <PageTabs tabs={[
+      { id: "settings", label: "Restaurant Settings", icon: "⚙️" },
+      { id: "qr",       label: "Table QR Codes",      icon: "📱" },
+    ]}>
+      {tab => tab === "qr" ? <QRPage /> : <SettingsContent />}
+    </PageTabs>
+  );
+}
+
+function SettingsContent() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<"restaurant"|"gst"|"cash">("restaurant");

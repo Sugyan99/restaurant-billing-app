@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
+import { PageTabs } from "@/components/PageTabs";
+import ImportPage from "@/app/dashboard/import/page";
 
 type Category = { id: string; name: string; sortOrder: number; items: MenuItem[] };
 type MenuItem = { id: string; name: string; price: number; isVeg: boolean; isAvailable: boolean; description?: string };
@@ -10,6 +12,17 @@ type ItemForm = { name: string; price: string; isVeg: boolean; isAvailable: bool
 const EMPTY_FORM: ItemForm = { name: "", price: "", isVeg: true, isAvailable: true, description: "", categoryId: "" };
 
 export default function MenuPage() {
+  return (
+    <PageTabs tabs={[
+      { id: "menu",   label: "Menu Items", icon: "🍽️" },
+      { id: "import", label: "Import CSV", icon: "⬆️" },
+    ]}>
+      {tab => tab === "import" ? <ImportPage /> : <MenuContent />}
+    </PageTabs>
+  );
+}
+
+function MenuContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeTab, setActiveTab] = useState<"items" | "categories">("items");
   const [showItemModal, setShowItemModal] = useState(false);
