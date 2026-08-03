@@ -10,6 +10,7 @@ const NAV_MAIN: { href: string; icon: string; label: string; badge?: boolean }[]
   { href: "/dashboard/home", icon: "🏠", label: "Dashboard" },
   { href: "/dashboard/tables", icon: "🪑", label: "Tables & POS" },
   { href: "/dashboard/orders", icon: "🍳", label: "Kitchen / KOT", badge: true },
+  { href: "/dashboard/kitchen", icon: "📺", label: "Kitchen Display" },
   { href: "/dashboard/bills", icon: "🧾", label: "Bills & Payments" },
 ];
 const NAV_MANAGE: { href: string; icon: string; label: string; badge?: boolean }[] = [
