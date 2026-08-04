@@ -6,7 +6,6 @@ import { ToastContainer } from "@/components/Toast";
 import { AIAssistant } from "@/components/AIAssistant";
 import NotificationBadge from "@/components/NotificationBadge";
 
-// ── Merged nav: fewer items, grouped logically ──────────────────────────────
 const NAV: { title: string; items: { href: string; icon: string; label: string; badge?: boolean }[] }[] = [
   {
     title: "Operations",
@@ -14,6 +13,7 @@ const NAV: { title: string; items: { href: string; icon: string; label: string; 
       { href: "/dashboard/home",           icon: "🏠", label: "Dashboard" },
       { href: "/dashboard/tables",         icon: "🪑", label: "Tables & POS" },
       { href: "/dashboard/orders",         icon: "🍳", label: "Kitchen / KOT", badge: true },
+      { href: "/dashboard/kitchen",        icon: "👨‍🍳", label: "Kitchen Display" },
       { href: "/dashboard/bills",          icon: "🧾", label: "Bills & Payments" },
       { href: "/dashboard/delivery",       icon: "🛵", label: "Delivery & Takeaway" },
       { href: "/dashboard/reservations",   icon: "📅", label: "Reservations" },
@@ -59,10 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router   = useRouter();
   const [user, setUser]               = useState<User | null>(null);
   const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
-  const [openSection, setOpenSection] = useState<string>(() => {
-    // Auto-open the section that contains the current page
-    return "Operations";
-  });
+  const [openSection, setOpenSection] = useState<string>("Operations");
   const [query, setQuery]             = useState("");
   const [pendingCount, setPendingCount] = useState<number | undefined>(undefined);
   const [results, setResults]         = useState<SearchResult[]>([]);
@@ -71,7 +68,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notifs, setNotifs]           = useState<{id:string;title:string;message:string;type:string;isRead:boolean;createdAt:string}[]>([]);
   const [unread, setUnread]           = useState(0);
 
-  // Auto-open section containing current route
   useEffect(() => {
     const active = NAV.find(g => g.items.some(i => pathname.startsWith(i.href)));
     if (active) setOpenSection(active.title);
@@ -135,13 +131,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div>
       <aside className="sidebar" aria-label="Main sidebar">
-        {/* Logo */}
         <div className="sidebar-logo">
           <h1>🍽️ RestoBill</h1>
           <p>Restaurant POS</p>
         </div>
 
-        {/* Nav — scrollable, single-open accordion */}
         <nav className="sidebar-nav" style={{ overflowY: "auto", flex: 1 }} role="navigation">
           {NAV.map(group => {
             const visible = group.items.filter(i => canAccess(i.href));
@@ -151,7 +145,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             return (
               <div key={group.title}>
-                {/* Section header */}
                 <button
                   onClick={() => setOpenSection(isOpen ? "" : group.title)}
                   aria-expanded={isOpen}
@@ -168,7 +161,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span style={{ fontSize: 9, opacity: .6 }}>{isOpen ? "▲" : "▼"}</span>
                 </button>
 
-                {/* Items — animated slide */}
                 <div style={{
                   maxHeight: isOpen ? `${visible.length * 44}px` : "0px",
                   overflow: "hidden",
@@ -201,7 +193,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        {/* User + logout */}
         <div style={{ borderTop: "1px solid #1E2D42", padding: "12px 16px", flexShrink: 0 }}>
           {user && (
             <div style={{ marginBottom: 8 }}>
@@ -223,14 +214,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="main-content">
         <div className="topbar">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span className="topbar-title">{currentPage?.icon} {currentPage?.label ?? "Dashboard"}</span>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            {/* Search */}
             <div style={{ position: "relative" }}>
               <input value={query} onChange={e => setQuery(e.target.value)} placeholder="🔍 Search..."
                 onBlur={() => setTimeout(() => setQuery(""), 200)}
@@ -252,7 +241,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
             </span>
 
-            {/* Notifications */}
             <div style={{ position: "relative" }}>
               <button onClick={() => { setNotifOpen(o => !o); if (!notifOpen && unread > 0) markAllRead(); }}
                 style={{ background: "none", border: "1px solid #E2E8F0", borderRadius: 8, padding: "5px 9px", cursor: "pointer", fontSize: 16, position: "relative", display: "flex", alignItems: "center" }}>
