@@ -220,6 +220,9 @@ model Settings {
   permissions    Json?
   receiptHeader  String? @default("Thank you for your visit!")
   receiptFooter  String? @default("Visit us again soon!")
+  groqApiKey     String?
+  groqModel      String  @default("llama3-8b-8192")
+  aiEnabled      Boolean @default(true)
 }
 
 model InventoryItem {
