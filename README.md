@@ -1,36 +1,166 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Restaurant Billing App
+
+A simple, user-friendly restaurant billing application built with Next.js. This project provides a clean interface for creating bills, managing menu items, and generating receipts — ideal as a starting point for a Point-of-Sale (POS) system or billing module for a restaurant project.
+
+---
+
+## Table of Contents
+
+- [Demo](#demo)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Install](#install)
+  - [Environment](#environment)
+  - [Run](#run)
+  - [Build](#build)
+- [Project Structure](#project-structure)
+- [Usage](#usage)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
+
+---
+
+## Demo
+
+Open http://localhost:3000 after running the app locally. Add screenshots or a short GIF here to help visitors understand the UI quickly.
+
+> Tip: Include a screenshot in the repository root (e.g. `assets/screenshot.png`) and reference it here.
+
+---
+
+## Features
+
+- Create and manage bills/orders
+- Add, edit, and remove menu items
+- Calculate taxes and discounts
+- Generate printable receipts
+- Responsive UI (desktop & tablet friendly)
+
+If you want more functionality (inventory, user roles, reports), consider opening an issue or contributing enhancements.
+
+---
+
+## Tech Stack
+
+- Next.js (App Router)
+- React
+- TypeScript (if used) / JavaScript
+- CSS / Tailwind (if used)
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js v18+ (recommended)
+- npm, Yarn, or pnpm
+
+### Install
+
+1. Clone the repository
+
+```bash
+git clone https://github.com/Sugyan99/restaurant-billing-app.git
+cd restaurant-billing-app
+```
+
+2. Install dependencies
+
+```bash
+npm install
+# or
+# yarn
+# or
+# pnpm install
+```
+
+### Environment
+
+Create a `.env.local` file in the project root if your app needs environment variables. Example:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3000/api
+```
+
+(Adjust variables to match your implementation.)
+
+### Run
+
+Start the development server:
 
 ```bash
 npm run dev
 # or
-yarn dev
+# yarn dev
 # or
-pnpm dev
-# or
-bun dev
+# pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Build for production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm run start
+```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+A quick overview of the main folders and files:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `app/` - Next.js App Router pages and layouts
+- `components/` - Reusable React components (Header, BillForm, Receipt)
+- `lib/` - Utilities and helpers
+- `public/` - Static assets (images, screenshot)
+- `styles/` - Global and component styles
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Usage
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Navigate to the main page and start adding items to a bill.
+- Adjust quantities, apply tax or discount, and generate a receipt.
+- Use the print dialog to print receipts or save them as PDF.
+
+Include short usage examples or screenshots for the most common flows.
+
+---
+
+## Deployment
+
+You can deploy this Next.js app to Vercel with zero configuration. Connect the repository and Vercel will detect the Next.js project.
+
+Alternatively, build and run on any Node.js hosting environment.
+
+---
+
+## Contributing
+
+Contributions are welcome! To contribute:
+
+1. Fork the repo
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m "feat: add ..."`
+4. Push to the branch and open a Pull Request
+
+Please open issues for feature requests or bugs.
+
+---
+
+## License
+
+This project is provided under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+---
+
+## Contact
+
+Created by Sugyan99. For questions or feedback, open an issue or reach out via GitHub.
