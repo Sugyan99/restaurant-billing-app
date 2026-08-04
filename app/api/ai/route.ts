@@ -5,18 +5,30 @@ import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-async function callGroq(systemPrompt: string, userMessage: string): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY is not configured");
+async function getGroqKey(): Promise<{ key: string; model: string } | null> {
+  // 1. Env var takes priority
+  if (process.env.GROQ_API_KEY) {
+    return { key: process.env.GROQ_API_KEY, model: "llama3-8b-8192" };
+  }
+  // 2. Fallback: DB setting
+  try {
+    const settings = await prisma.settings.findFirst({
+      select: { groqApiKey: true, groqModel: true, aiEnabled: true },
+    });
+    if (settings?.aiEnabled === false) return null;
+    if (settings?.groqApiKey) {
+      return { key: settings.groqApiKey, model: settings.groqModel ?? "llama3-8b-8192" };
+    }
+  } catch { /* ignore */ }
+  return null;
+}
 
+async function callGroq(apiKey: string, model: string, systemPrompt: string, userMessage: string): Promise<string> {
   const res = await fetch(GROQ_API_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: "llama3-8b-8192",
+      model,
       max_tokens: 512,
       messages: [
         { role: "system", content: systemPrompt },
@@ -26,17 +38,10 @@ async function callGroq(systemPrompt: string, userMessage: string): Promise<stri
   });
 
   if (!res.ok) {
-    // Try to parse a JSON error body, fall back to text
-    let parsed: any;
-    try {
-      parsed = await res.json();
-    } catch (e) {
-      parsed = await res.text();
-    }
-    const message = parsed?.error?.message ?? parsed ?? `Groq API error (status ${res.status})`;
-    const err = new Error(message);
-    // attach status for richer logging upstream
-    // @ts-ignore
+    let parsed: Record<string, unknown> | string;
+    try { parsed = await res.json(); } catch { parsed = await res.text(); }
+    const msg = (parsed as Record<string, Record<string, string>>)?.error?.message ?? String(parsed) ?? `Groq error ${res.status}`;
+    const err = new Error(msg) as Error & { status: number };
     err.status = res.status;
     throw err;
   }
@@ -49,100 +54,91 @@ export async function POST(req: NextRequest) {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
-  // Early configuration check: make it explicit if the key is missing
-  if (!process.env.GROQ_API_KEY) {
-    logger.error("ai/groq", new Error("GROQ_API_KEY is not set in environment"));
+  const cfg = await getGroqKey();
+  if (!cfg) {
     return NextResponse.json(
-      { error: "AI assistant is unavailable: server is not configured (GROQ_API_KEY missing). Please set GROQ_API_KEY in your environment." },
-      { status: 500 }
+      { error: "AI assistant is not configured. Please add your Groq API key in Settings → AI Assistant." },
+      { status: 503 }
     );
   }
 
-  let body: any;
-  try {
-    body = await req.json();
-  } catch (e: any) {
-    logger.error("ai/groq", e);
+  let body: { query?: string; autoAnalyze?: boolean };
+  try { body = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { query } = body;
-  if (!query?.trim()) {
+  const { query, autoAnalyze } = body;
+  if (!query?.trim() && !autoAnalyze) {
     return NextResponse.json({ error: "Query is required" }, { status: 400 });
   }
 
   try {
-    // Gather real-time context from DB to give AI accurate data
-    const [bills, topItems, settings] = await Promise.all([
+    const [bills, topItems, settings, pendingOrders] = await Promise.all([
       prisma.bill.findMany({
-        where: {
-          paymentStatus: "PAID",
-          createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-        },
-        include: {
-          order: { include: { items: { include: { menuItem: true } } } },
-        },
+        where: { paymentStatus: "PAID", createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+        include: { order: { include: { items: { include: { menuItem: true } } } } },
       }),
       prisma.orderItem.groupBy({
-        by: ["menuItemId"],
-        _sum: { quantity: true },
-        orderBy: { _sum: { quantity: "desc" } },
-        take: 5,
+        by: ["menuItemId"], _sum: { quantity: true },
+        orderBy: { _sum: { quantity: "desc" } }, take: 5,
       }),
       prisma.settings.findFirst(),
+      prisma.order.count({ where: { status: "PENDING" } }),
     ]);
 
     const totalRevenue = bills.reduce((s: number, b) => s + b.total, 0);
-    const todayBills = bills.filter(
-      (b) => new Date(b.createdAt).toDateString() === new Date().toDateString()
-    );
+    const todayBills = bills.filter(b => new Date(b.createdAt).toDateString() === new Date().toDateString());
     const todayRevenue = todayBills.reduce((s: number, b) => s + b.total, 0);
+    const yesterdayBills = bills.filter(b => {
+      const d = new Date(); d.setDate(d.getDate() - 1);
+      return new Date(b.createdAt).toDateString() === d.toDateString();
+    });
+    const yesterdayRevenue = yesterdayBills.reduce((s: number, b) => s + b.total, 0);
 
-    // Get top item names
     const menuItems = await prisma.menuItem.findMany({
-      where: { id: { in: topItems.map((i) => i.menuItemId) } },
+      where: { id: { in: topItems.map(i => i.menuItemId) } },
       select: { id: true, name: true, price: true },
     });
-    const topItemsFormatted = topItems.map((t) => {
-      const item = menuItems.find((m) => m.id === t.menuItemId);
+    const topItemsFormatted = topItems.map(t => {
+      const item = menuItems.find(m => m.id === t.menuItemId);
       return `${item?.name ?? "Unknown"} (qty: ${t._sum.quantity ?? 0})`;
     });
 
-    const systemPrompt = `You are a smart restaurant assistant for "${settings?.restaurantName ?? "this restaurant"}".
-You have access to real-time data and answer questions in a friendly, concise way (2-3 sentences max).
+    const trend = yesterdayRevenue > 0
+      ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100).toFixed(1)
+      : "N/A";
 
-Current data (last 7 days):
-- Total revenue: ₹${totalRevenue.toFixed(2)}
-- Today's revenue: ₹${todayRevenue.toFixed(2)}
+    const systemPrompt = `You are a smart restaurant business assistant for "${settings?.restaurantName ?? "this restaurant"}".
+You have real-time data and give concise, actionable insights (2-4 sentences). Be conversational and helpful.
+
+Live Data:
+- Today's revenue: ₹${todayRevenue.toFixed(0)} (${trend !== "N/A" ? (parseFloat(trend) >= 0 ? "+" : "") + trend + "% vs yesterday" : "no comparison yet"})
 - Today's orders: ${todayBills.length}
-- Top selling items: ${topItemsFormatted.join(", ") || "No data yet"}
+- Yesterday's revenue: ₹${yesterdayRevenue.toFixed(0)}
+- This week's revenue: ₹${totalRevenue.toFixed(0)}
+- Pending kitchen orders: ${pendingOrders}
+- Top 5 items (7 days): ${topItemsFormatted.join(", ") || "No data yet"}
 - GST rate: ${(settings?.cgstPercent ?? 2.5) + (settings?.sgstPercent ?? 2.5)}%
 
-Answer only about restaurant operations, sales, menu, billing topics. Always respond in English. Keep it brief and actionable.`;
+Rules: Only answer about restaurant operations, sales, menu, billing. Always in English. Be direct and helpful.`;
+
+    const userMsg = autoAnalyze
+      ? `Give me a smart business summary for today. Mention revenue trend, pending orders, and one actionable tip. Be brief and friendly.`
+      : query!;
 
     try {
-      const answer = await callGroq(systemPrompt, query);
+      const answer = await callGroq(cfg.key, cfg.model, systemPrompt, userMsg);
       return NextResponse.json({ answer });
-    } catch (err: any) {
-      // Log rich details but don't leak secrets in responses
-      logger.error("ai/groq", {
-        message: err?.message ?? String(err),
-        status: err?.status ?? null,
-        stack: err?.stack ?? null,
-      });
-
-      // Provide a helpful but non-sensitive error message to clients
-      const clientMessage = err?.message?.includes("GROQ_API_KEY")
-        ? "AI assistant misconfigured (missing API key)."
-        : "AI assistant is unavailable right now. Please try again later.";
-
-      return NextResponse.json(
-        { error: clientMessage },
-        { status: err?.status && Number.isInteger(err.status) ? err.status : 500 }
-      );
+    } catch (err: unknown) {
+      const e = err as Error & { status?: number };
+      logger.error("ai/groq", { message: e?.message, status: e?.status });
+      const clientMsg = e?.message?.toLowerCase().includes("invalid api key")
+        ? "Invalid Groq API key. Please update it in Settings → AI Assistant."
+        : "AI is temporarily unavailable. Please try again.";
+      return NextResponse.json({ error: clientMsg }, { status: 500 });
     }
-  } catch (dbErr: any) {
+  } catch (dbErr: unknown) {
     logger.error("ai/groq-db", dbErr);
-    return NextResponse.json({ error: "Failed to gather restaurant data" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load restaurant data" }, { status: 500 });
   }
 }
