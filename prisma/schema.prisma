@@ -74,8 +74,14 @@ model RestaurantTable {
   number       String        @unique
   capacity     Int           @default(4)
   status       TableStatus   @default(FREE)
+  posX         Float         @default(0)
+  posY         Float         @default(0)
+  shape        String        @default("square")
+  section      String        @default("Main Hall")
+  mergedWith   String?
   orders       Order[]
   reservations Reservation[]
+  waitlist     Waitlist[]
 }
 
 model Category {
@@ -257,6 +263,20 @@ model Reservation {
   createdAt     DateTime         @default(now())
 }
 
+
+model Waitlist {
+  id            String           @id @default(cuid())
+  customerName  String
+  customerPhone String           @default("")
+  partySize     Int              @default(2)
+  estimatedWait Int?             @default(15)
+  notes         String?
+  status        String           @default("WAITING")
+  tableId       String?
+  table         RestaurantTable? @relation(fields: [tableId], references: [id])
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
 model BillingAuditLog {
   id        String   @id @default(cuid())
   orderId   String

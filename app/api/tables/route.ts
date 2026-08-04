@@ -33,7 +33,14 @@ export async function POST(req: NextRequest) {
   }
 
   const table = await prisma.restaurantTable.create({
-    data: { number: String(body.number), capacity: body.capacity ?? 4 },
+    data: {
+        number: String(body.number),
+        capacity: body.capacity ?? 4,
+        shape: body.shape ?? "square",
+        section: body.section ?? "Main Hall",
+        posX: body.posX ?? 0,
+        posY: body.posY ?? 0,
+      },
   });
 
   return NextResponse.json({ table }, { status: 201 });

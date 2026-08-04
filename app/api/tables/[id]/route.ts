@@ -9,23 +9,24 @@ export async function PUT(
 ) {
   return safeHandler("tables/[id]/PUT", async () => {
     const session = requireAuth(req, ["OWNER", "MANAGER"]);
-  if (isAuthError(session)) return session;
-
-  const { id } = await params;
-  const body = await req.json();
-
-  const table = await prisma.restaurantTable.update({
-    where: { id },
-    data: {
-      number: body.number,
-      capacity: body.capacity,
-      status: body.status,
-    },
+    if (isAuthError(session)) return session;
+    const { id } = await params;
+    const body = await req.json();
+    const table = await prisma.restaurantTable.update({
+      where: { id },
+      data: {
+        ...(body.number !== undefined && { number: body.number }),
+        ...(body.capacity !== undefined && { capacity: body.capacity }),
+        ...(body.status !== undefined && { status: body.status }),
+        ...(body.posX !== undefined && { posX: body.posX }),
+        ...(body.posY !== undefined && { posY: body.posY }),
+        ...(body.shape !== undefined && { shape: body.shape }),
+        ...(body.section !== undefined && { section: body.section }),
+        ...(body.mergedWith !== undefined && { mergedWith: body.mergedWith }),
+      },
+    });
+    return NextResponse.json({ table });
   });
-
-  return NextResponse.json({ table
-  });
-});
 }
 
 export async function DELETE(
@@ -34,23 +35,18 @@ export async function DELETE(
 ) {
   return safeHandler("tables/[id]/DELETE", async () => {
     const session = requireAuth(req, ["OWNER", "MANAGER"]);
-  if (isAuthError(session)) return session;
-
-  const { id } = await params;
-
-  const activeOrders = await prisma.order.count({
-    where: { tableId: id, status: { in: ["PENDING", "PREPARING", "READY"] } },
+    if (isAuthError(session)) return session;
+    const { id } = await params;
+    const activeOrders = await prisma.order.count({
+      where: { tableId: id, status: { in: ["PENDING", "PREPARING", "READY"] } },
+    });
+    if (activeOrders > 0) {
+      return NextResponse.json(
+        { error: "This table has active orders. Complete them first." },
+        { status: 400 }
+      );
+    }
+    await prisma.restaurantTable.delete({ where: { id } });
+    return NextResponse.json({ success: true });
   });
-
-  if (activeOrders > 0) {
-    return NextResponse.json(
-      { error: "This table has active orders. Complete them first." },
-      { status: 400 }
-    );
-  }
-
-  await prisma.restaurantTable.delete({ where: { id } });
-  return NextResponse.json({ success: true
-  });
-});
 }
