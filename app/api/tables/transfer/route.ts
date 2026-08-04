@@ -5,7 +5,7 @@ import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function POST(req: NextRequest) {
   return safeHandler("tables/transfer/POST", async () => {
-    const session = requireAuth(req, ["OWNER", "MANAGER", "STAFF"]);
+    const session = requireAuth(req, ["OWNER", "MANAGER", "CASHIER"]);
     if (isAuthError(session)) return session;
     const { fromTableId, toTableId } = await req.json();
     if (!fromTableId || !toTableId) {
