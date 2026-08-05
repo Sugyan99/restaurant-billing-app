@@ -12,7 +12,6 @@ const NAV: { title: string; items: { href: string; icon: string; label: string; 
     items: [
       { href: "/dashboard/home",           icon: "🏠", label: "Dashboard" },
       { href: "/dashboard/tables",         icon: "🪑", label: "Tables & POS" },
-      { href: "/dashboard/floor",           icon: "🗺️", label: "Floor Plan" },
       { href: "/dashboard/orders",         icon: "🍳", label: "Kitchen / KOT", badge: true },
       { href: "/dashboard/kitchen",        icon: "👨‍🍳", label: "Kitchen Display" },
       { href: "/dashboard/bills",          icon: "🧾", label: "Bills & Payments" },
