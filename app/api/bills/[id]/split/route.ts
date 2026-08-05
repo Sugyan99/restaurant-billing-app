@@ -54,13 +54,13 @@ export async function POST(
     const primaryMode = [...payments].sort((a, b) => b.amount - a.amount)[0].mode;
     const paymentStatus = totalPaid >= finalTotal - 0.01 ? "PAID" : "PARTIALLY_PAID";
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
       const paid = await (tx.bill as any).update({
         where: { id },
         data: {
           paymentMode: primaryMode,
           paymentStatus,
-          splitPayments: payments as unknown as import("@prisma/client").Prisma.InputJsonValue,
+          splitPayments: payments as any,
           tip,
           roundOff,
           total: finalTotal,

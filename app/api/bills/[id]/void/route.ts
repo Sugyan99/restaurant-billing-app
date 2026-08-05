@@ -28,7 +28,7 @@ export async function POST(
     if (bill.paymentStatus === "PAID") return NextResponse.json({ error: "Cannot void a paid bill — use Refund instead" }, { status: 400 });
     if ((bill as any).billStatus === "VOID") return NextResponse.json({ error: "Bill already voided" }, { status: 400 });
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await (tx.bill as any).update({ where: { id }, data: { billStatus: "VOID", voidReason: parsed.data.reason } });
       await tx.order.update({ where: { id: bill.orderId }, data: { status: "READY" } });
       if (bill.order.tableId) {

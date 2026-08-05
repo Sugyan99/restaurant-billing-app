@@ -36,7 +36,7 @@ export async function POST(
       updateData.discount = 0;
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await (tx.bill as any).update({ where: { id }, data: updateData });
       await auditLog(tx as any, `DISCOUNT_${parsed.data.action}ED`, bill.orderId, session.userId, {
         discount: bill.discount,

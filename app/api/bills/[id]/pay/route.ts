@@ -44,7 +44,7 @@ export async function POST(
     const paidAmount = parsed.data.paidAmount ?? finalTotal;
     const paymentStatus = paidAmount >= finalTotal - 0.01 ? "PAID" : "PARTIALLY_PAID";
 
-    const updatedBill = await prisma.$transaction(async (tx) => {
+    const updatedBill = await prisma.$transaction(async (tx: any) => {
       const paid = await (tx.bill as any).update({
         where: { id },
         data: {

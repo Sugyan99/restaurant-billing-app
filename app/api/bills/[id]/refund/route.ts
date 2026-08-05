@@ -40,7 +40,7 @@ export async function POST(
       return NextResponse.json({ error: `Refund amount ₹${refundAmount.toFixed(2)} exceeds bill total ₹${bill.total.toFixed(2)}` }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await (tx.bill as any).update({
         where: { id },
         data: {
