@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { showToast } from "@/components/Toast";
 
 type Table = {
@@ -412,7 +412,7 @@ export default function TablesPage() {
                   const cfg = S_CFG[table.status];
                   const isMSrc = mergeSource?.id === table.id, isTSrc = transferSource?.id === table.id;
                   const isRound = table.shape === "round";
-                  const itemCount = table.orders?.reduce((s, o) => s + (o as any).items?.reduce((s2: number, i: any) => s2 + i.quantity, 0) || 0, 0) ?? 0;
+                  const itemCount = table.orders?.reduce((s, o) => s + (o.items?.reduce((s2, i) => s2 + i.quantity, 0) ?? 0), 0) ?? 0;
                   const mergedLabel = table.mergedWith ? tables.find(t => t.id === table.mergedWith)?.number : null;
                   return (
                     <div key={table.id} style={{ position: "absolute", left: table.posX, top: table.posY, width: GRID, height: GRID, cursor: floorMode === "drag" ? "grab" : "pointer", transition: "left 0.05s, top 0.05s" }}
