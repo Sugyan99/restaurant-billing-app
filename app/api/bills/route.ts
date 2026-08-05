@@ -69,8 +69,23 @@ export async function POST(req: NextRequest) {
     const itemsTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
     const calc = calculateBill(itemsTotal, discount, cgstPercent, sgstPercent, taxConfig);
 
+    // Discount approval: CASHIER + discount > 10% → requires manager approval
+    const DISCOUNT_APPROVAL_THRESHOLD = 10; // percent
+    const discountPercent = calc.subtotal > 0 ? (calc.discount / calc.subtotal) * 100 : 0;
+    const needsApproval = session.role === "CASHIER" && discountPercent > DISCOUNT_APPROVAL_THRESHOLD;
+
     // createInvoice: lock + draft + atomic tx + audit log
     const { bill } = await createInvoice(prisma, orderId, calc, cart, session.userId);
+
+    // Set approval status if needed (post-creation update, outside lock)
+    if (needsApproval) {
+      await (prisma.bill as any).update({
+        where: { id: bill.id },
+        data: { discountApprovalStatus: "PENDING" },
+      });
+      return NextResponse.json({ bill: { ...bill, discountApprovalStatus: "PENDING" }, approvalRequired: true }, { status: 201 });
+    }
+
     return NextResponse.json({ bill }, { status: 201 });
   });
 }

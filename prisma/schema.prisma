@@ -174,10 +174,19 @@ model Bill {
   taxMode       String        @default("EXCLUSIVE")
   isIGST        Boolean       @default(false)
   total         Float
-  paymentMode   PaymentMode?
-  splitPayments Json?
-  paymentStatus PaymentStatus @default(PENDING)
-  createdAt     DateTime      @default(now())
+  paymentMode             PaymentMode?
+  splitPayments           Json?
+  paymentStatus           PaymentStatus @default(PENDING)
+  tip                     Float         @default(0)
+  roundOff                Float         @default(0)
+  billStatus              String        @default("ACTIVE")
+  paidAmount              Float         @default(0)
+  refundAmount            Float         @default(0)
+  refundReason            String?
+  voidReason              String?
+  discountApprovalStatus  String        @default("AUTO")
+  discountApprovedBy      String?
+  createdAt               DateTime      @default(now())
 }
 
 model Expense {
