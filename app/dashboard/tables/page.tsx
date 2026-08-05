@@ -34,6 +34,11 @@ export default function TablesPage() {
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showAddTable, setShowAddTable] = useState(false);
   const [newTableNum, setNewTableNum] = useState("");
+  const [editingTable, setEditingTable] = useState<Table | null>(null);
+  const [editNum, setEditNum] = useState("");
+  const [editCap, setEditCap] = useState(4);
+  const [editSection, setEditSection] = useState("Main Hall");
+  const [editShape, setEditShape] = useState("square");
   const [discount, setDiscount]             = useState(0);
   const [loading, setLoading]               = useState(false);
   const [activeOrder, setActiveOrder]       = useState<Order | null>(null);
@@ -250,6 +255,33 @@ export default function TablesPage() {
     }
   }
 
+  function openEditTable(e: React.MouseEvent, table: Table) {
+    e.stopPropagation();
+    setEditingTable(table);
+    setEditNum(table.number);
+    setEditCap(table.capacity);
+    setEditSection(table.section ?? "Main Hall");
+    setEditShape(table.shape ?? "square");
+  }
+
+  async function saveEditTable() {
+    if (!editingTable || !editNum.trim()) return;
+    const res = await fetch(`/api/tables/${editingTable.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ number: editNum.trim(), capacity: editCap, section: editSection, shape: editShape }),
+    });
+    if (res.ok) { showToast("Table updated"); setEditingTable(null); loadTables(); }
+    else { const d = await res.json(); showToast(d.error ?? "Update failed", "error"); }
+  }
+
+  async function deleteTable(table: Table) {
+    if (!confirm(`Delete Table ${table.number}? This cannot be undone.`)) return;
+    const res = await fetch(`/api/tables/${table.id}`, { method: "DELETE" });
+    if (res.ok) { showToast(`Table ${table.number} deleted`); setEditingTable(null); loadTables(); }
+    else { const d = await res.json(); showToast(d.error ?? "Delete failed", "error"); }
+  }
+
   // ── Floor helpers ────────────────────────────────────────────────────────
   async function doMerge(primary: Table, secondary: Table) {
     const r = await fetch("/api/tables/merge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ primaryTableId: primary.id, secondaryTableId: secondary.id }) });
@@ -387,6 +419,7 @@ export default function TablesPage() {
                       onMouseDown={e => onDragStart(e, table)} onClick={() => onFloorTableClick(table)}>
                       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: cfg.bg, border: `2px solid ${isMSrc || isTSrc ? "#A78BFA" : cfg.border}`, borderRadius: isRound ? "50%" : 12, boxShadow: isMSrc || isTSrc ? "0 0 16px #A78BFA88" : `0 0 12px ${cfg.dot}33`, transition: "all 0.2s", transform: isMSrc || isTSrc ? "scale(1.08)" : "scale(1)" }}>
                         {table.mergedWith && <div style={{ position: "absolute", top: -6, left: -6, background: "#7C3AED", color: "white", fontSize: 9, borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800 }}>M</div>}
+                        <button onClick={e => { e.stopPropagation(); openEditTable(e, table); }} style={{ position: "absolute", top: 3, right: 4, background: "none", border: "none", cursor: "pointer", fontSize: 10, opacity: 0.5, padding: 0, lineHeight: 1, color: "white" }} title="Edit table">✏️</button>
                         <div style={{ color: cfg.dot, fontWeight: 900, fontSize: 16 }}>{table.number}</div>
                         <div style={{ display: "flex", gap: 1, marginTop: 2 }}>
                           {Array.from({ length: Math.min(table.capacity, 4) }).map((_, i) => <span key={i} style={{ fontSize: 8 }}>🪑</span>)}
@@ -481,7 +514,13 @@ export default function TablesPage() {
       ) : (
         <div className="table-grid">
           {tables.map((table) => (
-            <div key={table.id} className={`table-card ${table.status.toLowerCase()}`} onClick={() => openTable(table)}>
+            <div key={table.id} className={`table-card ${table.status.toLowerCase()}`} onClick={() => openTable(table)} style={{ position: "relative" }}>
+              <button onClick={(e) => openEditTable(e, table)} title="Edit table"
+                style={{ position: "absolute", top: 6, right: 6, background: "none", border: "none", cursor: "pointer", fontSize: 13, opacity: 0.4, padding: 2, lineHeight: 1 }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+                onMouseLeave={e => (e.currentTarget.style.opacity = "0.4")}>
+                ✏️
+              </button>
               <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase" }}>Table</div>
               <div className="table-num">{table.number}</div>
               <div className="table-status">
@@ -733,6 +772,53 @@ export default function TablesPage() {
               <button className="btn btn-ghost" onClick={() => setShowAddTable(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={addTable}>Add Table</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Table Modal */}
+      {editingTable && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setEditingTable(null)}>
+          <div className="modal" style={{ maxWidth: 380 }}>
+            <h3 className="modal-title">✏️ Edit Table {editingTable.number}</h3>
+            <div className="form-group">
+              <label className="form-label">Table Name / Number</label>
+              <input className="form-input" value={editNum} onChange={e => setEditNum(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && saveEditTable()} autoFocus />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="form-group">
+                <label className="form-label">Capacity</label>
+                <input type="number" className="form-input" min={1} max={20} value={editCap} onChange={e => setEditCap(+e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Shape</label>
+                <select className="form-input" value={editShape} onChange={e => setEditShape(e.target.value)}>
+                  <option value="square">Square</option>
+                  <option value="round">Round</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Section</label>
+              <select className="form-input" value={editSection} onChange={e => setEditSection(e.target.value)}>
+                {["Main Hall", "Terrace", "Private", "Bar"].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "space-between", marginTop: 4 }}>
+              <button className="btn btn-ghost" style={{ color: "#ef4444", borderColor: "#ef4444" }}
+                onClick={() => deleteTable(editingTable)}
+                disabled={editingTable.status === "OCCUPIED"} title={editingTable.status === "OCCUPIED" ? "Cannot delete — table has active order" : "Delete table"}>
+                🗑 Delete
+              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-ghost" onClick={() => setEditingTable(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveEditTable} disabled={!editNum.trim()}>Save</button>
+              </div>
+            </div>
+            {editingTable.status === "OCCUPIED" && (
+              <p style={{ fontSize: 11, color: "#f59e0b", marginTop: 8, textAlign: "center" }}>⚠ Table has active order — delete disabled</p>
+            )}
           </div>
         </div>
       )}
