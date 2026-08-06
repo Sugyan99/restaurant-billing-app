@@ -15,6 +15,7 @@ const NAV: { title: string; items: { href: string; icon: string; label: string; 
       { href: "/dashboard/orders",         icon: "🍳", label: "Kitchen / KOT", badge: true },
       { href: "/dashboard/kitchen",        icon: "👨‍🍳", label: "Kitchen Display" },
       { href: "/dashboard/bills",          icon: "🧾", label: "Bills & Payments" },
+      { href: "/dashboard/qr-orders",       icon: "📱", label: "QR Orders",         badge: true },
       { href: "/dashboard/delivery",       icon: "🛵", label: "Delivery & Takeaway" },
       { href: "/dashboard/reservations",   icon: "📅", label: "Reservations" },
     ],
@@ -62,6 +63,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [openSection, setOpenSection] = useState<string>("Operations");
   const [query, setQuery]             = useState("");
   const [pendingCount, setPendingCount] = useState<number | undefined>(undefined);
+  const [qrPending, setQrPending]       = useState<number>(0);
   const [results, setResults]         = useState<SearchResult[]>([]);
   const [searching, setSearching]     = useState(false);
   const [notifOpen, setNotifOpen]     = useState(false);
@@ -97,7 +99,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }).catch(() => setAllowedPages(["home","tables","floor","orders","bills"]));
       }
     });
-    const loadBadge = () => fetch("/api/orders?status=PENDING").then(r => r.json()).then(d => setPendingCount(d.orders?.length ?? 0)).catch(() => setPendingCount(0));
+    const loadBadge = () => {
+      fetch("/api/orders?status=PENDING").then(r => r.json()).then(d => setPendingCount(d.orders?.length ?? 0)).catch(() => setPendingCount(0));
+      fetch("/api/qr/pending").then(r => r.json()).then(d => setQrPending(d.orders?.length ?? 0)).catch(() => setQrPending(0));
+    };
     const loadNotifs = () => fetch("/api/notifications").then(r => r.json()).then(d => { setNotifs(d.notifications ?? []); setUnread(d.unreadCount ?? 0); }).catch(() => {});
     loadBadge(); loadNotifs();
     const iv = setInterval(() => { loadBadge(); loadNotifs(); }, 20000);
@@ -177,13 +182,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       >
                         <span style={{ fontSize: 15 }}>{item.icon}</span>
                         <span style={{ flex: 1 }}>{item.label}</span>
-                        {item.badge && (
-                          <NotificationBadge
-                            count={pendingCount}
-                            showDot={pendingCount === 0}
-                            ariaLabel={`${pendingCount ?? 0} pending orders`}
-                          />
-                        )}
+                        {item.badge && (() => {
+                          const cnt = item.href.includes("qr-orders") ? qrPending : pendingCount;
+                          return <NotificationBadge count={cnt} showDot={cnt === 0} ariaLabel={`${cnt ?? 0} pending`} />;
+                        })()}
                       </Link>
                     );
                   })}

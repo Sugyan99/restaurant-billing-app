@@ -145,6 +145,7 @@ model Order {
   cancelRequestedBy    String?
   cancelReason         String?
   coverCount           Int             @default(1)
+  source               String          @default("POS") // "POS" | "QR"
 }
 
 model OrderItem {
@@ -389,6 +390,34 @@ model KotTicket {
 
   @@index([orderId])
   @@index([station, status])
+}
+
+// ─── QR Ordering ─────────────────────────────────────────────────────────────
+
+model QrOrder {
+  id            String      @id @default(cuid())
+  tableNumber   String
+  customerName  String
+  customerPhone String?
+  items         Json        @default("[]")
+  notes         String?
+  status        String      @default("PENDING") // PENDING | APPROVED | REJECTED
+  orderId       String?
+  feedback      QrFeedback?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([status])
+  @@index([tableNumber])
+}
+
+model QrFeedback {
+  id        String   @id @default(cuid())
+  qrOrderId String   @unique
+  qrOrder   QrOrder  @relation(fields: [qrOrderId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
 }
 
 model KotTicketLine {
