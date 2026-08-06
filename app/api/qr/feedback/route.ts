@@ -20,7 +20,10 @@ export async function POST(req: NextRequest) {
     const { qrOrderId, rating, comment } = parsed.data;
 
     // Verify order exists and is approved
-    const qrOrder = await prisma.qrOrder.findUnique({ where: { id: qrOrderId } });
+    const qrOrder = await prisma.qrOrder.findUnique({
+      where: { id: qrOrderId },
+      include: { feedback: { select: { id: true } } },
+    });
     if (!qrOrder) return NextResponse.json({ error: "Order not found" }, { status: 404 });
     if (qrOrder.feedback) return NextResponse.json({ error: "Feedback already submitted" }, { status: 409 });
 
