@@ -14,9 +14,12 @@ type Bill = {
   discountApprovalStatus: "AUTO" | "PENDING" | "APPROVED" | "REJECTED";
   createdAt: string;
   order: {
-    orderNumber: number; type: string; customerName?: string; customerPhone?: string;
+    id: string; orderNumber: number; type: string; customerName?: string; customerPhone?: string;
+    source?: string; kotNote?: string;
     table?: { number: string };
-    items: { quantity: number; price: number; menuItem: { name: string } }[];
+    customer?: { id: string; name: string; phone: string; totalVisits: number; totalSpent: number; loyaltyPoints: number } | null;
+    createdBy?: { name: string; role: string };
+    items: { quantity: number; price: number; notes?: string | null; menuItem: { name: string } }[];
   };
 };
 
@@ -85,6 +88,13 @@ export default function BillsPage() {
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [detailBill, setDetailBill] = useState<Bill | null>(null);
+  // Owner edit/delete
+  const [editBill, setEditBill]         = useState<Bill | null>(null);
+  const [editName, setEditName]         = useState("");
+  const [editPhone, setEditPhone]       = useState("");
+  const [editSaving, setEditSaving]     = useState(false);
+  const [deleteBill, setDeleteBill]     = useState<Bill | null>(null);
+  const [deleting, setDeleting]         = useState(false);
 
   const loadBills = useCallback(async () => {
     const url = filterDate ? `/api/bills?date=${filterDate}` : "/api/bills";
@@ -214,6 +224,32 @@ export default function BillsPage() {
     });
     if (!res.ok) { showToast((await res.json()).error, "error"); return; }
     showToast(action === "APPROVE" ? "Discount approved" : "Discount rejected");
+    await loadBills();
+  }
+
+  async function saveOrderEdit() {
+    if (!editBill) return;
+    setEditSaving(true);
+    const res = await fetch(`/api/orders/${editBill.order.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customerName: editName, customerPhone: editPhone }),
+    });
+    setEditSaving(false);
+    if (!res.ok) { showToast((await res.json()).error ?? "Failed", "error"); return; }
+    showToast("Order updated");
+    setEditBill(null);
+    await loadBills();
+  }
+
+  async function deleteOrder() {
+    if (!deleteBill) return;
+    setDeleting(true);
+    const res = await fetch(`/api/orders/${deleteBill.order.id}`, { method: "DELETE" });
+    setDeleting(false);
+    if (!res.ok) { showToast((await res.json()).error ?? "Failed to delete", "error"); return; }
+    showToast("Order deleted");
+    setDeleteBill(null);
+    setDetailBill(null);
     await loadBills();
   }
 
@@ -552,29 +588,76 @@ export default function BillsPage() {
       {/* ── Bill Detail Modal ── */}
       {detailBill && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setDetailBill(null)}>
-          <div className="modal" style={{ maxWidth: 500 }}>
+          <div className="modal" style={{ maxWidth: 520, maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h3 className="modal-title" style={{ margin: 0 }}>Bill #{detailBill.billNumber}</h3>
               {statusBadge(detailBill)}
             </div>
             <div style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 6 }}>
+              {/* Order meta */}
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#64748B" }}>Order</span><span>#{detailBill.order.orderNumber}</span>
+                <span style={{ color: "#64748B" }}>Order #</span><span>#{detailBill.order.orderNumber}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "#64748B" }}>Table/Type</span>
                 <span>{detailBill.order.table ? `Table ${detailBill.order.table.number}` : detailBill.order.type}</span>
               </div>
-              {detailBill.order.customerName && <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#64748B" }}>Customer</span><span>{detailBill.order.customerName}</span>
-              </div>}
+              {detailBill.order.source && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#64748B" }}>Source</span>
+                  <span style={{ background: detailBill.order.source === "QR" ? "#FEF3C7" : "#F1F5F9", color: detailBill.order.source === "QR" ? "#CA8A04" : "#475569", padding: "1px 8px", borderRadius: 5, fontWeight: 600 }}>
+                    {detailBill.order.source === "QR" ? "📱 QR Scan" : "🖥️ POS"}
+                  </span>
+                </div>
+              )}
+              {detailBill.order.createdBy && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#64748B" }}>Created By</span>
+                  <span>{detailBill.order.createdBy.name} <span style={{ color: "#94A3B8", fontSize: 11 }}>({detailBill.order.createdBy.role})</span></span>
+                </div>
+              )}
+
+              {/* Customer */}
+              {(detailBill.order.customerName || detailBill.order.customer) && (
+                <>
+                  <hr style={{ border: "none", borderTop: "1px dashed #E2E8F0", margin: "4px 0" }} />
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#64748B" }}>Customer</span>
+                    <span style={{ fontWeight: 600 }}>{detailBill.order.customer?.name ?? detailBill.order.customerName}</span>
+                  </div>
+                  {detailBill.order.customerPhone && (
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "#64748B" }}>Phone</span><span>{detailBill.order.customerPhone}</span>
+                    </div>
+                  )}
+                  {detailBill.order.customer && (
+                    <div style={{ background: "#F8FAFC", borderRadius: 8, padding: "8px 12px", fontSize: 12, display: "flex", gap: 16 }}>
+                      <span>🏆 {detailBill.order.customer.loyaltyPoints} pts</span>
+                      <span>🛍️ {detailBill.order.customer.totalVisits} visits</span>
+                      <span>💰 ₹{detailBill.order.customer.totalSpent.toFixed(0)} spent</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Items */}
               <hr style={{ border: "none", borderTop: "1px dashed #E2E8F0", margin: "4px 0" }} />
               {detailBill.order.items.map((item, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>{item.menuItem.name} × {item.quantity}</span>
-                  <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                <div key={i}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>{item.menuItem.name} × {item.quantity}</span>
+                    <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                  </div>
+                  {item.notes && <div style={{ fontSize: 11, color: "#94A3B8", paddingLeft: 8 }}>📝 {item.notes}</div>}
                 </div>
               ))}
+              {detailBill.order.kotNote && (
+                <div style={{ fontSize: 12, color: "#64748B", background: "#FEF9C3", padding: "4px 8px", borderRadius: 6 }}>
+                  📋 {detailBill.order.kotNote}
+                </div>
+              )}
+
+              {/* Totals */}
               <hr style={{ border: "none", borderTop: "1px dashed #E2E8F0", margin: "4px 0" }} />
               {[
                 ["Subtotal", `₹${detailBill.subtotal.toFixed(2)}`],
@@ -619,9 +702,71 @@ export default function BillsPage() {
                 Created: {new Date(detailBill.createdAt).toLocaleString("en-IN")}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16, flexWrap: "wrap" }}>
+              {isOwner && (
+                <>
+                  <button className="btn btn-ghost" style={{ color: "#1D4ED8", borderColor: "#DBEAFE" }}
+                    onClick={() => { setEditName(detailBill.order.customerName ?? ""); setEditPhone(detailBill.order.customerPhone ?? ""); setEditBill(detailBill); setDetailBill(null); }}>
+                    ✏️ Edit
+                  </button>
+                  <button className="btn btn-ghost" style={{ color: "#DC2626", borderColor: "#FEE2E2" }}
+                    onClick={() => { setDeleteBill(detailBill); setDetailBill(null); }}>
+                    🗑️ Delete Order
+                  </button>
+                </>
+              )}
               <button className="btn btn-ghost" onClick={() => printBill(detailBill)}>🖨️ Print</button>
               <button className="btn btn-ghost" onClick={() => setDetailBill(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
+      {/* Edit order modal (owner only) */}
+      {editBill && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditBill(null)}>
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <h3 className="modal-title" style={{ marginTop: 0 }}>✏️ Edit Order #{editBill.order.orderNumber}</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>Customer Name</label>
+                <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Customer name"
+                  style={{ width: "100%", border: "1.5px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>Phone Number</label>
+                <input value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="Phone number" type="tel"
+                  style={{ width: "100%", border: "1.5px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+              <button className="btn btn-ghost" onClick={() => setEditBill(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveOrderEdit} disabled={editSaving}>
+                {editSaving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete order confirmation (owner only) */}
+      {deleteBill && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setDeleteBill(null)}>
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <h3 className="modal-title" style={{ marginTop: 0, color: "#DC2626" }}>🗑️ Delete Order</h3>
+            <p style={{ fontSize: 14, color: "#475569", margin: "0 0 8px" }}>
+              Are you sure you want to permanently delete <strong>Order #{deleteBill.order.orderNumber}</strong>?
+            </p>
+            <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>
+              This will also delete the associated bill. This action cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+              <button className="btn btn-ghost" onClick={() => setDeleteBill(null)}>Cancel</button>
+              <button onClick={deleteOrder} disabled={deleting}
+                style={{ background: deleting ? "#94A3B8" : "#DC2626", color: "white", border: "none", borderRadius: 8, padding: "8px 18px", fontWeight: 700, fontSize: 14, cursor: deleting ? "not-allowed" : "pointer" }}>
+                {deleting ? "Deleting…" : "Delete Permanently"}
+              </button>
             </div>
           </div>
         </div>

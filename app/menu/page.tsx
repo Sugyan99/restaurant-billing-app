@@ -78,6 +78,7 @@ function MenuContent() {
 
   async function placeOrder() {
     if (!form.name.trim()) return alert("Please enter your name");
+    if (!form.phone.trim() || form.phone.trim().length < 10) return alert("Please enter a valid phone number (10 digits)");
     if (cart.size === 0) return alert("Cart is empty");
     setSub(true);
     const items = Array.from(cart.values()).map((e) => ({
@@ -263,8 +264,8 @@ function MenuContent() {
                 <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 10px" }}>Your Details</h3>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Your name *"
                   style={{ width: "100%", border: "1.5px solid #E2E8F0", borderRadius: 10, padding: "11px 14px", fontSize: 14, outline: "none", marginBottom: 10, fontFamily: "inherit" }} />
-                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone (optional)" type="tel"
-                  style={{ width: "100%", border: "1.5px solid #E2E8F0", borderRadius: 10, padding: "11px 14px", fontSize: 14, outline: "none", marginBottom: 10, fontFamily: "inherit" }} />
+                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone number *" type="tel" required
+                  style={{ width: "100%", border: `1.5px solid ${form.phone && form.phone.length < 10 ? "#DC2626" : "#E2E8F0"}`, borderRadius: 10, padding: "11px 14px", fontSize: 14, outline: "none", marginBottom: 10, fontFamily: "inherit" }} />
                 <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Order notes (optional)…" rows={2}
                   style={{ width: "100%", border: "1.5px solid #E2E8F0", borderRadius: 10, padding: "11px 14px", fontSize: 14, outline: "none", resize: "none", fontFamily: "inherit", marginBottom: 16 }} />
                 <button onClick={placeOrder} disabled={submitting}

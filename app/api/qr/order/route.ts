@@ -6,7 +6,7 @@ import { z } from "zod";
 const schema = z.object({
   tableNumber:   z.string().min(1),
   customerName:  z.string().min(1).max(80),
-  customerPhone: z.string().max(20).optional(),
+  customerPhone: z.string().min(10, "Phone number is required").max(20),
   notes:         z.string().max(300).optional(),
   items: z.array(z.object({
     menuItemId:   z.string().min(1),
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       data: {
         tableNumber,
         customerName,
-        customerPhone: customerPhone ?? null,
+        customerPhone: customerPhone,
         notes:         notes ?? null,
         items:         enrichedItems as never,
       },

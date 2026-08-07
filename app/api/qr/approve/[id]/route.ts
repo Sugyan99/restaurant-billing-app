@@ -55,12 +55,24 @@ export async function POST(
     }
     const priceMap = new Map(menuItems.map((m) => [m.id, m]));
 
+    // Auto-upsert customer by phone
+    let customerId: string | null = null;
+    if (qrOrder.customerPhone) {
+      const customer = await prisma.customer.upsert({
+        where:  { phone: qrOrder.customerPhone },
+        update: { name: qrOrder.customerName, totalVisits: { increment: 1 } },
+        create: { name: qrOrder.customerName, phone: qrOrder.customerPhone },
+      });
+      customerId = customer.id;
+    }
+
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Create real order
       const order = await tx.order.create({
         data: {
           type:          "DINE_IN",
           tableId:       table.id,
+          customerId:    customerId ?? undefined,
           customerName:  qrOrder.customerName,
           customerPhone: qrOrder.customerPhone ?? null,
           kotNote:       qrOrder.notes ?? null,
@@ -107,6 +119,17 @@ export async function POST(
           title:   `New KOT #${order.orderNumber} (QR — Table ${qrOrder.tableNumber})`,
           message: `${qrOrder.customerName} · ${items.length} item(s)`,
           role:    "KITCHEN",
+        },
+      });
+
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          action:   "QR_ORDER_APPROVED",
+          entity:   "Order",
+          entityId: order.id,
+          userId:   session.userId,
+          meta:     { qrOrderId: id, table: qrOrder.tableNumber, customer: qrOrder.customerName, customerId } as never,
         },
       });
 

@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     const bills = await prisma.bill.findMany({
       where,
-      include: { order: { include: { items: { include: { menuItem: true } }, table: true } } },
+      include: { order: { include: { items: { include: { menuItem: true } }, table: true, customer: true, createdBy: { select: { name: true, role: true } } } } },
       orderBy: { createdAt: "desc" },
     });
 

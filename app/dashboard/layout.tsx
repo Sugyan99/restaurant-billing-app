@@ -37,6 +37,7 @@ const NAV: { title: string; items: { href: string; icon: string; label: string; 
       { href: "/dashboard/gst-report",     icon: "🧾", label: "GST Report" },
       { href: "/dashboard/staff-report",   icon: "👨‍💼", label: "Staff Performance" },
       { href: "/dashboard/pnl",            icon: "💹", label: "P&L Statement" },
+      { href: "/dashboard/activity-log",   icon: "📋", label: "Activity Log" },
     ],
   },
   {

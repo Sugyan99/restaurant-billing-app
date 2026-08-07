@@ -39,11 +39,21 @@ export async function PUT(
 
   const { id } = await params;
   const body = await req.json();
-  const { status, isPriority, kotNote, cancelRequest, cancelApprove, itemKitchens } = body;
+  const { status, isPriority, kotNote, cancelRequest, cancelApprove, itemKitchens, customerName, customerPhone } = body;
 
   // Build update payload
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateData: Record<string, any> = {};
+
+  // Owner-only: edit customer details
+  if (customerName !== undefined) {
+    if (session.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
+    updateData.customerName = customerName || null;
+  }
+  if (customerPhone !== undefined) {
+    if (session.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
+    updateData.customerPhone = customerPhone || null;
+  }
 
   // Priority toggle
   if (isPriority !== undefined) updateData.isPriority = Boolean(isPriority);
@@ -153,9 +163,7 @@ export async function DELETE(
 
     await prisma.$transaction(async (tx) => {
       if (order.bill) await tx.bill.delete({ where: { id: order.bill.id } });
-      // orderItems cascade delete via schema onDelete: Cascade
       await tx.order.delete({ where: { id } });
-      // Free table if all orders gone
       if (order.tableId) {
         const remaining = await tx.order.count({
           where: { tableId: order.tableId, status: { in: ["PENDING","PREPARING","READY"] } },
@@ -164,6 +172,15 @@ export async function DELETE(
           await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: "FREE" } });
         }
       }
+      await tx.auditLog.create({
+        data: {
+          action:   "ORDER_DELETED",
+          entity:   "Order",
+          entityId: id,
+          userId:   session.userId,
+          meta:     { orderNumber: order.orderNumber, customerName: order.customerName } as never,
+        },
+      });
     });
 
     return NextResponse.json({ success: true });
