@@ -721,7 +721,6 @@ export default function BillsPage() {
           </div>
         </div>
       )}
-    </div>
 
       {/* Edit order modal (owner only) */}
       {editBill && (
