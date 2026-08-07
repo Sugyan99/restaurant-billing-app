@@ -314,11 +314,59 @@ export async function createBillInTx(tx: Tx, orderId: string, calc: BillCalculat
 
 // ─── Post-payment finalization ────────────────────────────────────────────────
 
+async function deductStockForOrder(tx: Tx, orderId: string) {
+  try {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      include: { items: { where: { quantity: { gt: 0 } } } },
+    });
+    if (!order) return;
+    for (const item of order.items) {
+      const recipes = await tx.recipeIngredient.findMany({
+        where: { menuItemId: item.menuItemId },
+      });
+      for (const r of recipes) {
+        const needed = r.quantity * item.quantity;
+        const inv = await tx.inventoryItem.findUnique({ where: { id: r.inventoryItemId } });
+        if (!inv) continue;
+        const newStock = Math.max(0, inv.currentStock - needed);
+        await tx.inventoryItem.update({ where: { id: r.inventoryItemId }, data: { currentStock: newStock } });
+        await tx.stockTransaction.create({
+          data: {
+            id: `stx_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+            inventoryItemId: r.inventoryItemId,
+            type: "SALE",
+            quantity: -needed,
+            balanceAfter: newStock,
+            note: `Order #${order.orderNumber}`,
+            referenceId: orderId,
+          },
+        });
+        // Low stock notification
+        if (inv.currentStock > inv.minStock && newStock <= inv.minStock) {
+          await (tx.notification as any).create({
+            data: {
+              id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+              type: "LOW_STOCK",
+              title: "Low Stock Alert",
+              message: `${inv.name} is low: ${newStock.toFixed(2)} ${inv.unit} remaining`,
+              role: "MANAGER",
+            },
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-blocking — stock deduction failure should not block payment
+  }
+}
+
 export async function finalizePayment(
   tx: Tx,
   bill: { orderId: string; total: number; order: { tableId: string | null; customerPhone: string | null } }
 ) {
   await tx.order.update({ where: { id: bill.orderId }, data: { status: "SERVED" } });
+  await deductStockForOrder(tx, bill.orderId);
 
   if (bill.order.tableId) {
     const active = await tx.order.count({

@@ -22,6 +22,8 @@ export async function PUT(
       currentStock: body.currentStock,
       minStock: body.minStock,
       costPerUnit: body.costPerUnit,
+      category: body.category ?? "General",
+      vendorId: body.vendorId ?? null,
       updatedAt: new Date(),
     },
   });

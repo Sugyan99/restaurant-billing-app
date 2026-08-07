@@ -104,6 +104,7 @@ model MenuItem {
   categoryId  String
   category    Category    @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
+  recipes     RecipeIngredient[]
   createdAt   DateTime    @default(now())
 }
 
@@ -241,14 +242,71 @@ model Settings {
   aiEnabled      Boolean @default(true)
 }
 
+model Vendor {
+  id             String          @id @default(cuid())
+  name           String          @unique
+  contact        String?
+  phone          String?
+  email          String?
+  address        String?
+  gstin          String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  purchaseOrders PurchaseOrder[]
+  inventoryItems InventoryItem[]
+}
+
 model InventoryItem {
-  id           String   @id @default(cuid())
-  name         String   @unique
-  unit         String   @default("kg")
-  currentStock Float    @default(0)
-  minStock     Float    @default(1)
-  costPerUnit  Float    @default(0)
-  updatedAt    DateTime @updatedAt
+  id           String             @id @default(cuid())
+  name         String             @unique
+  unit         String             @default("kg")
+  currentStock Float              @default(0)
+  minStock     Float              @default(1)
+  costPerUnit  Float              @default(0)
+  category     String             @default("General")
+  vendorId     String?
+  vendor       Vendor?            @relation(fields: [vendorId], references: [id])
+  updatedAt    DateTime           @updatedAt
+  recipes      RecipeIngredient[]
+  transactions StockTransaction[]
+}
+
+model RecipeIngredient {
+  id              String        @id @default(cuid())
+  menuItemId      String
+  menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  quantity        Float
+  unit            String        @default("kg")
+
+  @@unique([menuItemId, inventoryItemId])
+  @@index([menuItemId])
+  @@index([inventoryItemId])
+}
+
+enum StockTxType {
+  PURCHASE
+  SALE
+  WASTE
+  ADJUST
+  RETURN
+}
+
+model StockTransaction {
+  id              String        @id @default(cuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  type            StockTxType
+  quantity        Float
+  balanceAfter    Float
+  note            String?
+  referenceId     String?
+  createdById     String?
+  createdAt       DateTime      @default(now())
+
+  @@index([inventoryItemId, createdAt])
+  @@index([type])
 }
 
 model Discount {
@@ -347,6 +405,8 @@ model PurchaseOrder {
   orderedById  String
   expectedAt   DateTime?
   createdAt    DateTime            @default(now())
+  vendorId     String?
+  vendor       Vendor?             @relation(fields: [vendorId], references: [id])
   items        PurchaseOrderItem[]
 }
 
