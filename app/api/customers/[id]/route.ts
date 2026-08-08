@@ -29,7 +29,7 @@ export async function GET(
   const itemCount: Record<string, { name: string; count: number }> = {};
   for (const order of orders) {
     for (const item of order.items) {
-      const name = item.menuItem?.name ?? item.name;
+      const name = item.menuItem?.name ?? "Unknown";
       if (!itemCount[name]) itemCount[name] = { name, count: 0 };
       itemCount[name].count += item.quantity;
     }
