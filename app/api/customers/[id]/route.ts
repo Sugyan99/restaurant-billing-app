@@ -89,6 +89,7 @@ export async function DELETE(
       where: { customerPhone: customer.phone, status: { in: ["PENDING","PREPARING","READY"] } },
     });
     if (active > 0) return NextResponse.json({ error: "Customer has active orders" }, { status: 400 });
+    await prisma.order.updateMany({ where: { customerId: id }, data: { customerId: null } });
     await prisma.customer.delete({ where: { id } });
     return NextResponse.json({ success: true });
   });
