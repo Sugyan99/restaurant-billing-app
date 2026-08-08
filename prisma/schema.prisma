@@ -150,6 +150,10 @@ model Order {
   cancelReason         String?
   coverCount           Int             @default(1)
   source               String          @default("POS") // "POS" | "QR"
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([createdById])
 }
 
 model OrderItem {
@@ -192,6 +196,9 @@ model Bill {
   discountApprovalStatus  String        @default("AUTO")
   discountApprovedBy      String?
   createdAt               DateTime      @default(now())
+
+  @@index([createdAt])
+  @@index([paymentStatus])
 }
 
 model Expense {
@@ -202,6 +209,8 @@ model Expense {
   date        DateTime        @default(now())
   addedById   String
   createdAt   DateTime        @default(now())
+
+  @@index([date])
 }
 
 model DayClose {
@@ -356,6 +365,9 @@ model BillingAuditLog {
   actor     String
   meta      Json?
   createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([orderId])
 }
 
 model BillDraft {
@@ -387,6 +399,9 @@ model AuditLog {
   userId    String?
   meta      Json?
   createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entity, entityId])
 }
 
 model Notification {
@@ -396,7 +411,12 @@ model Notification {
   message   String
   isRead    Boolean  @default(false)
   role      String?
+  userId    String?  // null = broadcast to role; set = user-specific
   createdAt DateTime @default(now())
+
+  @@index([isRead])
+  @@index([userId])
+  @@index([role])
 }
 
 model PurchaseOrder {

@@ -34,9 +34,18 @@ export async function PUT(req: NextRequest) {
   return safeHandler("notifications/PUT", async () => {
     const session = requireAuth(req);
     if (isAuthError(session)) return session;
-    // Mark all as read for this role
+    // Mark as read only for this specific user's notifications.
+    // User-specific (userId set): scoped to session.userId.
+    // Broadcast (userId null): scoped to role so other users of same role
+    // still see them as unread until they mark them themselves.
     await prisma.notification.updateMany({
-      where: { OR: [{ role: null }, { role: session.role }], isRead: false },
+      where: {
+        isRead: false,
+        OR: [
+          { userId: session.userId },
+          { userId: null, OR: [{ role: null }, { role: session.role }] },
+        ],
+      },
       data: { isRead: true },
     });
     return NextResponse.json({ success: true });

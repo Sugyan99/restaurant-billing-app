@@ -25,19 +25,30 @@ export async function POST(req: NextRequest) {
 
     const { name, email, password, role } = parsed.data;
 
-    const existingUserCount = await prisma.user.count();
+    // Pre-hash outside transaction (bcrypt is slow; transactions should be short)
+    const passwordHash = await hashPassword(password);
 
-    if (existingUserCount === 0) {
-      // No users exist yet (first-time setup) — allow self-registration as OWNER.
-      // This is how the restaurant owner creates their very first account.
-      const passwordHash = await hashPassword(password);
-      const owner = await prisma.user.create({
-        data: { name, email, passwordHash, role: "OWNER" },
+    // Atomic first-user bootstrap — count() + create() in one transaction
+    // prevents a race condition where two concurrent requests both see count=0
+    // and both self-register as OWNER.
+    let isFirstUser = false;
+    try {
+      const owner = await prisma.$transaction(async (tx) => {
+        const count = await tx.user.count();
+        if (count > 0) {
+          isFirstUser = false;
+          throw Object.assign(new Error("NOT_FIRST"), { code: "NOT_FIRST" });
+        }
+        isFirstUser = true;
+        return tx.user.create({ data: { name, email, passwordHash, role: "OWNER" } });
       });
       return NextResponse.json(
         { user: { id: owner.id, name: owner.name, email: owner.email, role: owner.role } },
         { status: 201 }
       );
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code !== "NOT_FIRST") throw e; // unexpected error — re-throw to outer catch
     }
 
     // Once an OWNER exists, only a logged-in OWNER can add new staff accounts
