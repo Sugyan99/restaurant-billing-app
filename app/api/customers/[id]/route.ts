@@ -25,8 +25,26 @@ export async function GET(
     take: 20,
   });
 
-  return NextResponse.json({ customer, orders
+  // Derive favorite items from all orders
+  const itemCount: Record<string, { name: string; count: number }> = {};
+  for (const order of orders) {
+    for (const item of order.items) {
+      const name = item.menuItem?.name ?? item.name;
+      if (!itemCount[name]) itemCount[name] = { name, count: 0 };
+      itemCount[name].count += item.quantity;
+    }
+  }
+  const favoriteItems = Object.values(itemCount)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  const feedback = await prisma.customerFeedback.findMany({
+    where: { customerId: customer.id },
+    orderBy: { createdAt: "desc" },
+    take: 5,
   });
+
+  return NextResponse.json({ customer, orders, favoriteItems, feedback });
 });
 }
 
@@ -46,6 +64,8 @@ export async function PUT(
       email: body.email || null,
       address: body.address || null,
       notes: body.notes || null,
+      birthday: body.birthday || null,
+      gender: body.gender || null,
       creditBalance: Math.max(0, body.creditBalance ?? 0),
     },
   });
