@@ -66,7 +66,10 @@ model User {
   kitchenStation  String?  // "MAIN" | "GRILL" | "BAR" | "TANDOOR" — for KITCHEN role only
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
-  ordersCreated   Order[]  @relation("OrderCreatedBy")
+  ordersCreated   Order[]         @relation("OrderCreatedBy")
+  expenses        Expense[]       @relation("ExpenseAddedBy")
+  dayCloses       DayClose[]      @relation("DayClosedBy")
+  purchaseOrders  PurchaseOrder[] @relation("PurchaseOrderBy")
 }
 
 model RestaurantTable {
@@ -208,9 +211,11 @@ model Expense {
   category    ExpenseCategory @default(OTHER)
   date        DateTime        @default(now())
   addedById   String
+  addedBy     User            @relation("ExpenseAddedBy", fields: [addedById], references: [id])
   createdAt   DateTime        @default(now())
 
   @@index([date])
+  @@index([addedById])
 }
 
 model DayClose {
@@ -228,7 +233,10 @@ model DayClose {
   creditSales     Float    @default(0)
   notes           String?
   closedById      String
+  closedBy        User     @relation("DayClosedBy", fields: [closedById], references: [id])
   createdAt       DateTime @default(now())
+
+  @@index([closedById])
 }
 
 model Settings {
@@ -370,14 +378,6 @@ model BillingAuditLog {
   @@index([orderId])
 }
 
-model BillDraft {
-  id           String   @id @default(cuid())
-  orderId      String   @unique
-  cartSnapshot Json
-  discount     Float    @default(0)
-  updatedAt    DateTime @updatedAt
-}
-
 model InvoiceDraft {
   id           String   @id @default(cuid())
   orderId      String   @unique
@@ -426,11 +426,14 @@ model PurchaseOrder {
   totalAmount  Float               @default(0)
   notes        String?
   orderedById  String
+  orderedBy    User                @relation("PurchaseOrderBy", fields: [orderedById], references: [id])
   expectedAt   DateTime?
   createdAt    DateTime            @default(now())
   vendorId     String?
   vendor       Vendor?             @relation(fields: [vendorId], references: [id])
   items        PurchaseOrderItem[]
+
+  @@index([orderedById])
 }
 
 model PurchaseOrderItem {

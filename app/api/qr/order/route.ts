@@ -2,6 +2,7 @@ import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 const schema = z.object({
   tableNumber:   z.string().min(1),
@@ -17,6 +18,14 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   return safeHandler("qr/order/POST", async () => {
+    // Rate limit: 10 orders per minute per IP
+    if (!checkRateLimit(getClientIp(req), 10, 60_000)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait before placing another order." },
+        { status: 429 }
+      );
+    }
+
     const body   = await req.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {

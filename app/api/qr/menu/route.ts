@@ -1,9 +1,12 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
 
-export async function GET() {
-  return safeHandler("qr/menu/GET", async () => {
+// Cache QR menu for 60 seconds — menu rarely changes mid-service
+// and this endpoint is hit on every QR scan. Revalidated on menu item updates.
+const getQrMenu = unstable_cache(
+  async () => {
     const [settings, categories] = await Promise.all([
       prisma.settings.findFirst({
         select: { restaurantName: true, address: true, phone: true, receiptHeader: true },
@@ -22,8 +25,15 @@ export async function GET() {
         orderBy: { sortOrder: "asc" },
       }),
     ]);
+    return { settings, categories: categories.filter((c) => c.items.length > 0) };
+  },
+  ["qr-menu"],
+  { revalidate: 60 }
+);
 
-    const filtered = categories.filter((c) => c.items.length > 0);
-    return NextResponse.json({ settings, categories: filtered });
+export async function GET() {
+  return safeHandler("qr/menu/GET", async () => {
+    const data = await getQrMenu();
+    return NextResponse.json(data);
   });
 }
