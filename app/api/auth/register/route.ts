@@ -31,15 +31,12 @@ export async function POST(req: NextRequest) {
     // Atomic first-user bootstrap — count() + create() in one transaction
     // prevents a race condition where two concurrent requests both see count=0
     // and both self-register as OWNER.
-    let isFirstUser = false;
     try {
       const owner = await prisma.$transaction(async (tx) => {
         const count = await tx.user.count();
         if (count > 0) {
-          isFirstUser = false;
           throw Object.assign(new Error("NOT_FIRST"), { code: "NOT_FIRST" });
         }
-        isFirstUser = true;
         return tx.user.create({ data: { name, email, passwordHash, role: "OWNER" } });
       });
       return NextResponse.json(
@@ -70,7 +67,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const passwordHash = await hashPassword(password);
     const newStaff = await prisma.user.create({
       data: { name, email, passwordHash, role: role ?? "CASHIER" },
     });
