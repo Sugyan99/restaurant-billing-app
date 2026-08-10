@@ -19,6 +19,7 @@ const TOKEN_EXPIRY = "7d";
 export type JwtPayload = {
   userId: string;
   role: "OWNER" | "MANAGER" | "CASHIER" | "KITCHEN";
+  tenantId: string; // UUID of the active tenant — required for all DB operations
 };
 
 // Type guard instead of unsafe cast on jwt.verify output
@@ -28,6 +29,7 @@ function isJwtPayload(value: unknown): value is JwtPayload {
   return (
     typeof v.userId === "string" &&
     typeof v.role === "string" &&
+    typeof v.tenantId === "string" &&
     ["OWNER", "MANAGER", "CASHIER", "KITCHEN"].includes(v.role)
   );
 }

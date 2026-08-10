@@ -38,8 +38,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account disabled" }, { status: 403 });
     }
 
-    // Sign JWT exactly like email/password login does
-    const jwt = signToken({ userId: dbUser.id, role: dbUser.role as "OWNER" | "MANAGER" | "CASHIER" | "KITCHEN" });
+    // Resolve tenant membership
+    const membership = await prisma.tenantMembership.findFirst({
+      where: { userId: dbUser.id, status: "active" },
+      select: { tenantId: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { error: "Account is not associated with any tenant. Contact your administrator." },
+        { status: 403 }
+      );
+    }
+
+    const jwt = signToken({
+      userId: dbUser.id,
+      role: dbUser.role as "OWNER" | "MANAGER" | "CASHIER" | "KITCHEN",
+      tenantId: membership.tenantId,
+    });
 
     const response = NextResponse.json({ success: true });
     response.cookies.set("token", jwt, {

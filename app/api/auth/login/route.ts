@@ -42,7 +42,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const token = signToken({ userId: user.id, role: user.role });
+    // Resolve tenant — user must be an active member of at least one tenant
+    const membership = await prisma.tenantMembership.findFirst({
+      where: { userId: user.id, status: "active" },
+      select: { tenantId: true },
+      orderBy: { createdAt: "asc" }, // prefer oldest (primary) tenant
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { error: "Account is not associated with any tenant. Contact your administrator." },
+        { status: 403 }
+      );
+    }
+
+    const token = signToken({ userId: user.id, role: user.role, tenantId: membership.tenantId });
 
     const response = NextResponse.json({
       user: { id: user.id, name: user.name, email: user.email, role: user.role },

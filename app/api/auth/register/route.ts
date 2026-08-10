@@ -37,7 +37,24 @@ export async function POST(req: NextRequest) {
         if (count > 0) {
           throw Object.assign(new Error("NOT_FIRST"), { code: "NOT_FIRST" });
         }
-        return tx.user.create({ data: { name, email, passwordHash, role: "OWNER" } });
+        const newOwner = await tx.user.create({ data: { name, email, passwordHash, role: "OWNER" } });
+
+        // Bind owner to the default tenant (created in Phase 2)
+        const defaultTenant = await tx.tenant.findFirst({ where: { slug: "default" } });
+        if (defaultTenant) {
+          await tx.tenantMembership.upsert({
+            where: { tenantId_userId: { tenantId: defaultTenant.id, userId: newOwner.id } },
+            update: {},
+            create: {
+              tenantId: defaultTenant.id,
+              userId: newOwner.id,
+              role: "owner",
+              status: "active",
+              joinedAt: new Date(),
+            },
+          });
+        }
+        return newOwner;
       });
       return NextResponse.json(
         { user: { id: owner.id, name: owner.name, email: owner.email, role: owner.role } },
@@ -45,7 +62,7 @@ export async function POST(req: NextRequest) {
       );
     } catch (e) {
       const code = (e as { code?: string }).code;
-      if (code !== "NOT_FIRST") throw e; // unexpected error — re-throw to outer catch
+      if (code !== "NOT_FIRST") throw e;
     }
 
     // Once an OWNER exists, only a logged-in OWNER can add new staff accounts
@@ -67,8 +84,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const newStaff = await prisma.user.create({
-      data: { name, email, passwordHash, role: role ?? "CASHIER" },
+    // Get the owner's active tenant from their JWT
+    const session = verifyToken(token!);
+    const ownerTenantId = session?.tenantId;
+
+    const newStaff = await prisma.$transaction(async (tx) => {
+      const staff = await tx.user.create({
+        data: { name, email, passwordHash, role: role ?? "CASHIER" },
+      });
+
+      // Add staff to the same tenant as the owner
+      if (ownerTenantId) {
+        const memberRole =
+          role === "OWNER" ? "owner"
+          : role === "MANAGER" ? "manager"
+          : role === "KITCHEN" ? "staff"
+          : "cashier";
+
+        await tx.tenantMembership.upsert({
+          where: { tenantId_userId: { tenantId: ownerTenantId, userId: staff.id } },
+          update: {},
+          create: {
+            tenantId: ownerTenantId,
+            userId: staff.id,
+            role: memberRole,
+            status: "active",
+            joinedAt: new Date(),
+          },
+        });
+      }
+      return staff;
     });
 
     return NextResponse.json(

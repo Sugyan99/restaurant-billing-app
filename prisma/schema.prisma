@@ -7,205 +7,261 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
 enum Role {
   OWNER
   MANAGER
   CASHIER
   KITCHEN
 }
+enum OrderType    { DINE_IN TAKEAWAY DELIVERY }
+enum OrderStatus  { PENDING PREPARING READY SERVED CANCELLED }
+enum TableStatus  { FREE OCCUPIED RESERVED }
+enum PaymentMode  { CASH UPI CARD CREDIT }
+enum PaymentStatus { PENDING PAID PARTIALLY_PAID }
+enum ExpenseCategory { INGREDIENTS UTILITIES SALARIES MAINTENANCE MARKETING OTHER }
+enum StockTxType  { PURCHASE SALE WASTE ADJUST RETURN }
+enum KotTicketStatus { PENDING SENT PLATED VOIDED }
+enum KotLineStatus   { PENDING SENT VOIDED }
 
-enum OrderType {
-  DINE_IN
-  TAKEAWAY
-  DELIVERY
+// ─── Tenant registry ─────────────────────────────────────────────────────────
+
+model Tenant {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  slug        String             @unique
+  status      String             @default("active")
+  plan        String             @default("starter")
+  ownerEmail  String?            @map("owner_email")
+  metadata    Json               @default("{}")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  memberships TenantMembership[]
+
+  @@map("tenants")
 }
 
-enum OrderStatus {
-  PENDING
-  PREPARING
-  READY
-  SERVED
-  CANCELLED
+model TenantMembership {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String    @default("cashier")
+  status    String    @default("active")
+  invitedBy String?   @map("invited_by")
+  joinedAt  DateTime? @map("joined_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId], map: "tm_tenant_user_unique")
+  @@index([tenantId], map: "idx_tm_tenant_id")
+  @@index([userId], map: "idx_tm_user_id")
+  @@map("tenant_memberships")
 }
 
-enum TableStatus {
-  FREE
-  OCCUPIED
-  RESERVED
-}
+// ─── Default tenant UUID (temporary until all routes supply tenantId) ─────────
+// Matches the "RESTO BILL" seed tenant created in Phase 2.
+// Remove @default(...) from each model once all API routes inject tenantId.
+// Value: 9d67c11e-fc4b-46c9-bd2e-4ec775bb8868
 
-enum PaymentMode {
-  CASH
-  UPI
-  CARD
-  CREDIT
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  PARTIALLY_PAID
-}
-
-enum ExpenseCategory {
-  INGREDIENTS
-  UTILITIES
-  SALARIES
-  MAINTENANCE
-  MARKETING
-  OTHER
-}
+// ─── Identity ────────────────────────────────────────────────────────────────
 
 model User {
-  id              String   @id @default(cuid())
-  name            String
-  email           String   @unique
-  passwordHash    String
-  role            Role     @default(CASHIER)
-  phone           String?
-  kitchenStation  String?  // "MAIN" | "GRILL" | "BAR" | "TANDOOR" — for KITCHEN role only
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  ordersCreated   Order[]         @relation("OrderCreatedBy")
-  expenses        Expense[]       @relation("ExpenseAddedBy")
-  dayCloses       DayClose[]      @relation("DayClosedBy")
-  purchaseOrders  PurchaseOrder[] @relation("PurchaseOrderBy")
+  id             String             @id @default(cuid())
+  name           String
+  email          String             @unique
+  passwordHash   String
+  role           Role               @default(CASHIER)
+  phone          String?
+  kitchenStation String?
+  isActive       Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  ordersCreated  Order[]            @relation("OrderCreatedBy")
+  expenses       Expense[]          @relation("ExpenseAddedBy")
+  dayCloses      DayClose[]         @relation("DayClosedBy")
+  purchaseOrders PurchaseOrder[]    @relation("PurchaseOrderBy")
+  memberships    TenantMembership[]
 }
 
+// ─── Core restaurant entities ────────────────────────────────────────────────
+
 model RestaurantTable {
-  id           String        @id @default(cuid())
-  number       String        @unique
-  capacity     Int           @default(4)
-  status       TableStatus   @default(FREE)
-  posX         Float         @default(0)
-  posY         Float         @default(0)
-  shape        String        @default("square")
-  section      String        @default("Main Hall")
+  id           String          @id @default(cuid())
+  tenantId     String          @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  number       String
+  capacity     Int             @default(4)
+  status       TableStatus     @default(FREE)
+  posX         Float           @default(0)
+  posY         Float           @default(0)
+  shape        String          @default("square")
+  section      String          @default("Main Hall")
   mergedWith   String?
   orders       Order[]
   reservations Reservation[]
   waitlist     Waitlist[]
+
+  @@unique([tenantId, number], map: "RestaurantTable_tenant_number_unique")
+  @@index([tenantId], map: "idx_rtable_tenant")
 }
 
 model Category {
   id        String     @id @default(cuid())
-  name      String     @unique
+  tenantId  String     @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  name      String
   sortOrder Int        @default(0)
   items     MenuItem[]
+
+  @@unique([tenantId, name], map: "Category_tenant_name_unique")
+  @@index([tenantId], map: "idx_category_tenant")
 }
 
 model MenuItem {
-  id          String      @id @default(cuid())
+  id          String             @id @default(cuid())
+  tenantId    String             @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   name        String
   description String?
   price       Float
-  isVeg       Boolean     @default(true)
-  isAvailable Boolean     @default(true)
+  isVeg       Boolean            @default(true)
+  isAvailable Boolean            @default(true)
   imageUrl    String?
   taxRate     Float?
   taxCategory String?
   categoryId  String
-  category    Category    @relation(fields: [categoryId], references: [id])
+  category    Category           @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
   recipes     RecipeIngredient[]
-  createdAt   DateTime    @default(now())
+  createdAt   DateTime           @default(now())
+
+  @@index([tenantId], map: "idx_menuitem_tenant")
+  @@index([tenantId, categoryId], map: "idx_menuitem_tenant_cat")
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String   @unique
-  email     String?
-  address   String?
-  totalVisits Int    @default(0)
-  totalSpent    Float  @default(0)
-  creditBalance Float  @default(0)
-  loyaltyPoints Int    @default(0)
-  notes         String?
-  birthday      String?
-  gender        String?
-  createdAt DateTime @default(now())
-  orders    Order[]
-  feedback  CustomerFeedback[]
+  id             String             @id @default(cuid())
+  tenantId       String             @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  name           String
+  phone          String
+  email          String?
+  address        String?
+  totalVisits    Int                @default(0)
+  totalSpent     Float              @default(0)
+  creditBalance  Float              @default(0)
+  loyaltyPoints  Int                @default(0)
+  notes          String?
+  birthday       String?
+  gender         String?
+  createdAt      DateTime           @default(now())
+  orders         Order[]
+  feedback       CustomerFeedback[]
+
+  @@unique([tenantId, phone], map: "Customer_tenant_phone_unique")
+  @@index([tenantId], map: "idx_customer_tenant")
 }
 
 model Order {
-  id            String          @id @default(cuid())
-  orderNumber   Int             @unique @default(autoincrement())
-  type          OrderType       @default(DINE_IN)
-  status        OrderStatus     @default(PENDING)
-  tableId       String?
-  table         RestaurantTable? @relation(fields: [tableId], references: [id])
-  customerId    String?
-  customer      Customer?       @relation(fields: [customerId], references: [id])
-  customerName  String?
-  customerPhone String?
-  items         OrderItem[]
-  kotTickets    KotTicket[]
-  bill          Bill?
-  createdById   String
-  createdBy     User            @relation("OrderCreatedBy", fields: [createdById], references: [id])
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
-  isPriority           Boolean         @default(false)
-  kotNote              String?
-  cancelRequestedBy    String?
-  cancelReason         String?
-  coverCount           Int             @default(1)
-  source               String          @default("POS") // "POS" | "QR"
+  id                String           @id @default(cuid())
+  tenantId          String           @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  orderNumber       Int              @unique @default(autoincrement())
+  type              OrderType        @default(DINE_IN)
+  status            OrderStatus      @default(PENDING)
+  tableId           String?
+  table             RestaurantTable? @relation(fields: [tableId], references: [id])
+  customerId        String?
+  customer          Customer?        @relation(fields: [customerId], references: [id])
+  customerName      String?
+  customerPhone     String?
+  items             OrderItem[]
+  kotTickets        KotTicket[]
+  bill              Bill?
+  createdById       String
+  createdBy         User             @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  isPriority        Boolean          @default(false)
+  kotNote           String?
+  cancelRequestedBy String?
+  cancelReason      String?
+  coverCount        Int              @default(1)
+  source            String           @default("POS")
 
+  @@index([tenantId], map: "idx_order_tenant")
+  @@index([tenantId, status], map: "idx_order_tenant_status")
+  @@index([tenantId, createdAt(sort: Desc)], map: "idx_order_tenant_created")
   @@index([createdAt])
   @@index([status])
   @@index([createdById])
 }
 
 model OrderItem {
-  id         String          @id @default(cuid())
+  id         String        @id @default(cuid())
+  tenantId   String        @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   orderId    String
-  order      Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order      Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItemId String
-  menuItem   MenuItem        @relation(fields: [menuItemId], references: [id])
-  quantity   Int             @default(1)
+  menuItem   MenuItem      @relation(fields: [menuItemId], references: [id])
+  quantity   Int           @default(1)
   price      Float
   taxRate    Float?
   notes      String?
   kitchen    String?
   kotLines   KotTicketLine[]
+
+  @@index([tenantId], map: "idx_orderitem_tenant")
 }
 
 model Bill {
-  id            String        @id @default(cuid())
-  billNumber    Int           @unique @default(autoincrement())
-  orderId       String        @unique
-  order         Order         @relation(fields: [orderId], references: [id])
-  subtotal      Float
-  cgst          Float         @default(0)
-  sgst          Float         @default(0)
-  discount      Float         @default(0)
-  igst          Float         @default(0)
-  taxMode       String        @default("EXCLUSIVE")
-  isIGST        Boolean       @default(false)
-  total         Float
-  paymentMode             PaymentMode?
-  splitPayments           Json?
-  paymentStatus           PaymentStatus @default(PENDING)
-  tip                     Float         @default(0)
-  roundOff                Float         @default(0)
-  billStatus              String        @default("ACTIVE")
-  paidAmount              Float         @default(0)
-  refundAmount            Float         @default(0)
-  refundReason            String?
-  voidReason              String?
-  discountApprovalStatus  String        @default("AUTO")
-  discountApprovedBy      String?
-  createdAt               DateTime      @default(now())
+  id                     String        @id @default(cuid())
+  tenantId               String        @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  billNumber             Int           @unique @default(autoincrement())
+  orderId                String        @unique
+  order                  Order         @relation(fields: [orderId], references: [id])
+  subtotal               Float
+  cgst                   Float         @default(0)
+  sgst                   Float         @default(0)
+  discount               Float         @default(0)
+  igst                   Float         @default(0)
+  taxMode                String        @default("EXCLUSIVE")
+  isIGST                 Boolean       @default(false)
+  total                  Float
+  paymentMode            PaymentMode?
+  splitPayments          Json?
+  paymentStatus          PaymentStatus @default(PENDING)
+  tip                    Float         @default(0)
+  roundOff               Float         @default(0)
+  billStatus             String        @default("ACTIVE")
+  paidAmount             Float         @default(0)
+  refundAmount           Float         @default(0)
+  refundReason           String?
+  voidReason             String?
+  discountApprovalStatus String        @default("AUTO")
+  discountApprovedBy     String?
+  createdAt              DateTime      @default(now())
 
+  @@index([tenantId], map: "idx_bill_tenant")
+  @@index([tenantId, createdAt(sort: Desc)], map: "idx_bill_tenant_created")
+  @@index([tenantId, paymentStatus], map: "idx_bill_tenant_status")
   @@index([createdAt])
   @@index([paymentStatus])
 }
 
+model BillDraft {
+  id           String   @id
+  tenantId     String   @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  orderId      String   @unique
+  cartSnapshot Json     @default("[]")
+  discount     Float    @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId], map: "idx_billdraft_tenant")
+}
+
+// ─── Finance ─────────────────────────────────────────────────────────────────
+
 model Expense {
   id          String          @id @default(cuid())
+  tenantId    String          @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   description String
   amount      Float
   category    ExpenseCategory @default(OTHER)
@@ -214,33 +270,39 @@ model Expense {
   addedBy     User            @relation("ExpenseAddedBy", fields: [addedById], references: [id])
   createdAt   DateTime        @default(now())
 
+  @@index([tenantId], map: "idx_expense_tenant")
+  @@index([tenantId, date(sort: Desc)], map: "idx_expense_tenant_date")
   @@index([date])
   @@index([addedById])
 }
 
 model DayClose {
-  id              String   @id @default(cuid())
-  date            DateTime @unique
-  openingCash     Float    @default(0)
-  closingCash     Float    @default(0)
-  totalSales      Float    @default(0)
-  totalOrders     Int      @default(0)
-  totalExpenses   Float    @default(0)
-  netProfit       Float    @default(0)
-  cashSales       Float    @default(0)
-  upiSales        Float    @default(0)
-  cardSales       Float    @default(0)
-  creditSales     Float    @default(0)
-  notes           String?
-  closedById      String
-  closedBy        User     @relation("DayClosedBy", fields: [closedById], references: [id])
-  createdAt       DateTime @default(now())
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  date          DateTime
+  openingCash   Float    @default(0)
+  closingCash   Float    @default(0)
+  totalSales    Float    @default(0)
+  totalOrders   Int      @default(0)
+  totalExpenses Float    @default(0)
+  netProfit     Float    @default(0)
+  cashSales     Float    @default(0)
+  upiSales      Float    @default(0)
+  cardSales     Float    @default(0)
+  creditSales   Float    @default(0)
+  notes         String?
+  closedById    String
+  closedBy      User     @relation("DayClosedBy", fields: [closedById], references: [id])
+  createdAt     DateTime @default(now())
 
+  @@unique([tenantId, date], map: "DayClose_tenant_date_unique")
+  @@index([tenantId], map: "idx_dayclose_tenant")
   @@index([closedById])
 }
 
 model Settings {
   id             String  @id @default(cuid())
+  tenantId       String  @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   restaurantName String  @default("My Restaurant")
   address        String?
   gstNumber      String?
@@ -260,11 +322,16 @@ model Settings {
   groqApiKey     String?
   groqModel      String  @default("llama3-8b-8192")
   aiEnabled      Boolean @default(true)
+
+  @@index([tenantId], map: "idx_settings_tenant")
 }
+
+// ─── Inventory ───────────────────────────────────────────────────────────────
 
 model Vendor {
   id             String          @id @default(cuid())
-  name           String          @unique
+  tenantId       String          @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  name           String
   contact        String?
   phone          String?
   email          String?
@@ -274,11 +341,15 @@ model Vendor {
   createdAt      DateTime        @default(now())
   purchaseOrders PurchaseOrder[]
   inventoryItems InventoryItem[]
+
+  @@unique([tenantId, name], map: "Vendor_tenant_name_unique")
+  @@index([tenantId], map: "idx_vendor_tenant")
 }
 
 model InventoryItem {
   id           String             @id @default(cuid())
-  name         String             @unique
+  tenantId     String             @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  name         String
   unit         String             @default("kg")
   currentStock Float              @default(0)
   minStock     Float              @default(1)
@@ -289,10 +360,14 @@ model InventoryItem {
   updatedAt    DateTime           @updatedAt
   recipes      RecipeIngredient[]
   transactions StockTransaction[]
+
+  @@unique([tenantId, name], map: "InventoryItem_tenant_name_unique")
+  @@index([tenantId], map: "idx_invitem_tenant")
 }
 
 model RecipeIngredient {
   id              String        @id @default(cuid())
+  tenantId        String        @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   menuItemId      String
   menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
   inventoryItemId String
@@ -303,18 +378,12 @@ model RecipeIngredient {
   @@unique([menuItemId, inventoryItemId])
   @@index([menuItemId])
   @@index([inventoryItemId])
-}
-
-enum StockTxType {
-  PURCHASE
-  SALE
-  WASTE
-  ADJUST
-  RETURN
+  @@index([tenantId], map: "idx_recipe_tenant")
 }
 
 model StockTransaction {
   id              String        @id @default(cuid())
+  tenantId        String        @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   inventoryItemId String
   inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
   type            StockTxType
@@ -325,102 +394,14 @@ model StockTransaction {
   createdById     String?
   createdAt       DateTime      @default(now())
 
+  @@index([tenantId], map: "idx_stocktx_tenant")
   @@index([inventoryItemId, createdAt])
   @@index([type])
 }
 
-model Discount {
-  id        String   @id @default(cuid())
-  name      String
-  type      String   @default("PERCENT")
-  value     Float
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-}
-
-model Reservation {
-  id            String           @id @default(cuid())
-  customerName  String
-  customerPhone String
-  partySize     Int              @default(2)
-  date          DateTime
-  tableId       String?
-  table         RestaurantTable? @relation(fields: [tableId], references: [id])
-  status        String           @default("CONFIRMED")
-  notes         String?
-  createdAt     DateTime         @default(now())
-}
-
-
-model Waitlist {
-  id            String           @id @default(cuid())
-  customerName  String
-  customerPhone String           @default("")
-  partySize     Int              @default(2)
-  estimatedWait Int?             @default(15)
-  notes         String?
-  status        String           @default("WAITING")
-  tableId       String?
-  table         RestaurantTable? @relation(fields: [tableId], references: [id])
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-}
-model BillingAuditLog {
-  id        String   @id @default(cuid())
-  orderId   String
-  billId    String?
-  action    String
-  actor     String
-  meta      Json?
-  createdAt DateTime @default(now())
-
-  @@index([createdAt])
-  @@index([orderId])
-}
-
-model InvoiceDraft {
-  id           String   @id @default(cuid())
-  orderId      String   @unique
-  cartSnapshot Json
-  discount     Float    @default(0)
-  cgstPercent  Float    @default(2.5)
-  sgstPercent  Float    @default(2.5)
-  subtotal     Float    @default(0)
-  total        Float    @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-model AuditLog {
-  id        String   @id @default(cuid())
-  action    String
-  entity    String
-  entityId  String
-  userId    String?
-  meta      Json?
-  createdAt DateTime @default(now())
-
-  @@index([createdAt])
-  @@index([entity, entityId])
-}
-
-model Notification {
-  id        String   @id @default(cuid())
-  type      String
-  title     String
-  message   String
-  isRead    Boolean  @default(false)
-  role      String?
-  userId    String?  // null = broadcast to role; set = user-specific
-  createdAt DateTime @default(now())
-
-  @@index([isRead])
-  @@index([userId])
-  @@index([role])
-}
-
 model PurchaseOrder {
   id           String              @id @default(cuid())
+  tenantId     String              @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   supplierName String
   status       String              @default("PENDING")
   totalAmount  Float               @default(0)
@@ -433,11 +414,13 @@ model PurchaseOrder {
   vendor       Vendor?             @relation(fields: [vendorId], references: [id])
   items        PurchaseOrderItem[]
 
+  @@index([tenantId], map: "idx_po_tenant")
   @@index([orderedById])
 }
 
 model PurchaseOrderItem {
   id              String        @id @default(cuid())
+  tenantId        String        @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   name            String
@@ -445,25 +428,50 @@ model PurchaseOrderItem {
   unit            String        @default("kg")
   costPerUnit     Float         @default(0)
   total           Float         @default(0)
+
+  @@index([tenantId], map: "idx_poi_tenant")
+}
+
+// ─── Reservations / Waitlist ──────────────────────────────────────────────────
+
+model Reservation {
+  id            String           @id @default(cuid())
+  tenantId      String           @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  customerName  String
+  customerPhone String
+  partySize     Int              @default(2)
+  date          DateTime
+  tableId       String?
+  table         RestaurantTable? @relation(fields: [tableId], references: [id])
+  status        String           @default("CONFIRMED")
+  notes         String?
+  createdAt     DateTime         @default(now())
+
+  @@index([tenantId], map: "idx_reservation_tenant")
+}
+
+model Waitlist {
+  id            String           @id @default(cuid())
+  tenantId      String           @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  customerName  String
+  customerPhone String           @default("")
+  partySize     Int              @default(2)
+  estimatedWait Int?             @default(15)
+  notes         String?
+  status        String           @default("WAITING")
+  tableId       String?
+  table         RestaurantTable? @relation(fields: [tableId], references: [id])
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([tenantId], map: "idx_waitlist_tenant")
 }
 
 // ─── KOT / KDS ───────────────────────────────────────────────────────────────
 
-enum KotTicketStatus {
-  PENDING
-  SENT
-  PLATED
-  VOIDED
-}
-
-enum KotLineStatus {
-  PENDING
-  SENT
-  VOIDED
-}
-
 model KotTicket {
   id        String          @id @default(cuid())
+  tenantId  String          @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   orderId   String
   order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   station   String
@@ -474,40 +482,14 @@ model KotTicket {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
+  @@index([tenantId], map: "idx_kotticket_tenant")
   @@index([orderId])
   @@index([station, status])
 }
 
-// ─── QR Ordering ─────────────────────────────────────────────────────────────
-
-model QrOrder {
-  id            String      @id @default(cuid())
-  tableNumber   String
-  customerName  String
-  customerPhone String?
-  items         Json        @default("[]")
-  notes         String?
-  status        String      @default("PENDING") // PENDING | APPROVED | REJECTED
-  orderId       String?
-  feedback      QrFeedback?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  @@index([status])
-  @@index([tableNumber])
-}
-
-model QrFeedback {
-  id        String   @id @default(cuid())
-  qrOrderId String   @unique
-  qrOrder   QrOrder  @relation(fields: [qrOrderId], references: [id], onDelete: Cascade)
-  rating    Int
-  comment   String?
-  createdAt DateTime @default(now())
-}
-
 model KotTicketLine {
   id          String        @id @default(cuid())
+  tenantId    String        @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   ticketId    String
   ticket      KotTicket     @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   orderItemId String
@@ -518,27 +500,80 @@ model KotTicketLine {
   voidedAt    DateTime?
   voidedBy    String?
 
+  @@index([tenantId], map: "idx_kotline_tenant")
   @@index([ticketId])
   @@index([orderItemId])
 }
 
+// ─── QR Ordering ─────────────────────────────────────────────────────────────
+
+model QrOrder {
+  id            String     @id @default(cuid())
+  tenantId      String     @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  tableNumber   String
+  customerName  String
+  customerPhone String?
+  items         Json       @default("[]")
+  notes         String?
+  status        String     @default("PENDING")
+  orderId       String?
+  feedback      QrFeedback?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([tenantId], map: "idx_qrorder_tenant")
+  @@index([status])
+  @@index([tableNumber])
+}
+
+model QrFeedback {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  qrOrderId String   @unique
+  qrOrder   QrOrder  @relation(fields: [qrOrderId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId], map: "idx_qrfeedback_tenant")
+}
+
+// ─── CRM / Loyalty ───────────────────────────────────────────────────────────
+
+model Discount {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  name      String
+  type      String   @default("PERCENT")
+  value     Float
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId], map: "idx_discount_tenant")
+}
+
 model Coupon {
-  id          String    @id @default(cuid())
-  code        String    @unique
+  id          String       @id @default(cuid())
+  tenantId    String       @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  code        String
   description String?
-  type        String    @default("PERCENT")
+  type        String       @default("PERCENT")
   value       Float
-  minOrder    Float     @default(0)
-  usageLimit  Int       @default(0)
-  usedCount   Int       @default(0)
+  minOrder    Float        @default(0)
+  usageLimit  Int          @default(0)
+  usedCount   Int          @default(0)
   expiresAt   DateTime?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
   usages      CouponUsage[]
+
+  @@unique([tenantId, code], map: "Coupon_tenant_code_unique")
+  @@index([tenantId], map: "idx_coupon_tenant")
 }
 
 model CouponUsage {
   id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   couponId      String
   coupon        Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
   customerId    String?
@@ -546,11 +581,13 @@ model CouponUsage {
   orderId       String?
   usedAt        DateTime @default(now())
 
+  @@index([tenantId], map: "idx_couponusage_tenant")
   @@index([couponId])
 }
 
 model CustomerFeedback {
   id            String    @id @default(cuid())
+  tenantId      String    @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
   customerId    String?
   customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   customerPhone String?
@@ -561,5 +598,74 @@ model CustomerFeedback {
   orderId       String?
   createdAt     DateTime  @default(now())
 
+  @@index([tenantId], map: "idx_custfeedback_tenant")
   @@index([customerId])
+}
+
+// ─── Audit / Notifications ───────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  action    String
+  entity    String
+  entityId  String
+  userId    String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId], map: "idx_auditlog_tenant")
+  @@index([createdAt])
+  @@index([entity, entityId])
+}
+
+model BillingAuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  orderId   String
+  billId    String?
+  action    String
+  actor     String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId], map: "idx_billingaudit_tenant")
+  @@index([createdAt])
+  @@index([orderId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  type      String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  role      String?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId], map: "idx_notification_tenant")
+  @@index([tenantId, isRead], map: "idx_notification_tenant_read")
+  @@index([isRead])
+  @@index([userId])
+  @@index([role])
+}
+
+// ─── Drafts ──────────────────────────────────────────────────────────────────
+
+model InvoiceDraft {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  orderId      String   @unique
+  cartSnapshot Json
+  discount     Float    @default(0)
+  cgstPercent  Float    @default(2.5)
+  sgstPercent  Float    @default(2.5)
+  subtotal     Float    @default(0)
+  total        Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId], map: "idx_invoicedraft_tenant")
 }
