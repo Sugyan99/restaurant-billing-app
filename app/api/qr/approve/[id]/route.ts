@@ -58,12 +58,21 @@ export async function POST(
     // Auto-upsert customer by phone
     let customerId: string | null = null;
     if (qrOrder.customerPhone) {
-      const customer = await prisma.customer.upsert({
-        where:  { phone: qrOrder.customerPhone },
-        update: { name: qrOrder.customerName, totalVisits: { increment: 1 } },
-        create: { name: qrOrder.customerName, phone: qrOrder.customerPhone },
+      const existing = await prisma.customer.findFirst({
+        where: { phone: qrOrder.customerPhone, tenantId: session.tenantId },
       });
-      customerId = customer.id;
+      if (existing) {
+        await prisma.customer.update({
+          where: { id: existing.id },
+          data: { name: qrOrder.customerName, totalVisits: { increment: 1 } },
+        });
+        customerId = existing.id;
+      } else {
+        const customer = await prisma.customer.create({
+          data: { name: qrOrder.customerName, phone: qrOrder.customerPhone, tenantId: session.tenantId },
+        });
+        customerId = customer.id;
+      }
     }
 
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
