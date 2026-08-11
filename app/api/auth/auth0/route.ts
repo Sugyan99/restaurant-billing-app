@@ -31,7 +31,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account is deactivated" }, { status: 403 });
     }
 
-    const token = signToken({ userId: user.id, role: user.role });
+    // Resolve tenant membership
+    let membership = await prisma.tenantMembership.findFirst({
+      where: { userId: user.id, status: "active" },
+      select: { tenantId: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Auto-assign to default tenant if no membership exists
+    if (!membership) {
+      const DEFAULT_TENANT_ID = "9d67c11e-fc4b-46c9-bd2e-4ec775bb8868";
+      await prisma.tenantMembership.create({
+        data: {
+          tenantId: DEFAULT_TENANT_ID,
+          userId: user.id,
+          role: user.role.toLowerCase(),
+          status: "active",
+          joinedAt: new Date(),
+        },
+      });
+      membership = { tenantId: DEFAULT_TENANT_ID };
+    }
+
+    const token = signToken({ userId: user.id, role: user.role, tenantId: membership.tenantId });
     const response = NextResponse.json({
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
