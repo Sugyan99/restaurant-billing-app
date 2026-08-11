@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     let customerId: string | null = null;
     if (customerPhone) {
-      const c = await prisma.customer.findUnique({ where: { phone: customerPhone } });
+      const c = await prisma.customer.findFirst({ where: { phone: customerPhone, tenantId: session.tenantId } });
       if (c) customerId = c.id;
     }
 

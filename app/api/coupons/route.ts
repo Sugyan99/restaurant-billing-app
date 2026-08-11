@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     // Validate a specific coupon code
     if (code) {
-      const coupon = await prisma.coupon.findUnique({ where: { code: code.toUpperCase() } });
+      const coupon = await prisma.coupon.findFirst({ where: { code: code.toUpperCase(), tenantId: session.tenantId } });
       if (!coupon) return NextResponse.json({ error: "Invalid coupon" }, { status: 404 });
       if (!coupon.isActive) return NextResponse.json({ error: "Coupon is inactive" }, { status: 400 });
       if (coupon.expiresAt && coupon.expiresAt < new Date())
@@ -57,13 +57,14 @@ export async function POST(req: NextRequest) {
     if (type === "PERCENT" && value > 100)
       return NextResponse.json({ error: "Percent discount cannot exceed 100%" }, { status: 400 });
 
-    const existing = await prisma.coupon.findUnique({ where: { code } });
+    const existing = await prisma.coupon.findFirst({ where: { code, tenantId: session.tenantId } });
     if (existing) return NextResponse.json({ error: "Coupon code already exists" }, { status: 409 });
 
     const coupon = await prisma.coupon.create({
       data: {
         code, description: description || null, type, value, minOrder, usageLimit,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
+        tenantId: session.tenantId,
       },
     });
     return NextResponse.json({ coupon }, { status: 201 });

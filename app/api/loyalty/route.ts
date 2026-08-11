@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
     const phone = searchParams.get("phone");
 
     if (phone) {
-      const customer = await prisma.customer.findUnique({
-        where: { phone },
+      const customer = await prisma.customer.findFirst({
+        where: { phone, tenantId: session.tenantId },
         select: { id: true, name: true, phone: true, loyaltyPoints: true, totalSpent: true, totalVisits: true },
       });
       if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     const { phone, points } = await req.json();
     if (!phone || !points || points <= 0) return NextResponse.json({ error: "Phone and valid points required" }, { status: 400 });
 
-    const customer = await prisma.customer.findUnique({ where: { phone } });
+    const customer = await prisma.customer.findFirst({ where: { phone, tenantId: session.tenantId } });
     if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     if (customer.loyaltyPoints < points) {
       return NextResponse.json({ error: `Only ${customer.loyaltyPoints} points available` }, { status: 400 });
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     const discount = parseFloat((points * RUPEE_PER_POINTS).toFixed(2));
     const updated  = await prisma.customer.update({
-      where: { phone },
+      where: { id: customer.id },
       data:  { loyaltyPoints: { decrement: points } },
     });
 
@@ -74,11 +74,11 @@ export async function PUT(req: NextRequest) {
     const { phone, points, reason } = await req.json();
     if (!phone || !points || points <= 0) return NextResponse.json({ error: "Phone and valid points required" }, { status: 400 });
 
-    const customer = await prisma.customer.findUnique({ where: { phone } });
+    const customer = await prisma.customer.findFirst({ where: { phone, tenantId: session.tenantId } });
     if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
 
     const updated = await prisma.customer.update({
-      where: { phone },
+      where: { id: customer.id },
       data:  { loyaltyPoints: { increment: Math.round(points) } },
     });
 

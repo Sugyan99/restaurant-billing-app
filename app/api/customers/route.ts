@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search");
 
   if (phone) {
-    const customer = await prisma.customer.findUnique({ where: { phone } });
+    const customer = await prisma.customer.findFirst({ where: { phone, tenantId: session.tenantId } });
     return NextResponse.json({ customer });
   }
 
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
   }
 
-  const existing = await prisma.customer.findUnique({ where: { phone: parsed.data.phone } });
+  const existing = await prisma.customer.findFirst({ where: { phone: parsed.data.phone, tenantId: session.tenantId } });
   if (existing) {
     return NextResponse.json({ customer: existing, message: "Customer already exists" });
   }
