@@ -15,15 +15,60 @@ enum Role {
   CASHIER
   KITCHEN
 }
-enum OrderType    { DINE_IN TAKEAWAY DELIVERY }
-enum OrderStatus  { PENDING PREPARING READY SERVED CANCELLED }
-enum TableStatus  { FREE OCCUPIED RESERVED }
-enum PaymentMode  { CASH UPI CARD CREDIT }
-enum PaymentStatus { PENDING PAID PARTIALLY_PAID }
-enum ExpenseCategory { INGREDIENTS UTILITIES SALARIES MAINTENANCE MARKETING OTHER }
-enum StockTxType  { PURCHASE SALE WASTE ADJUST RETURN }
-enum KotTicketStatus { PENDING SENT PLATED VOIDED }
-enum KotLineStatus   { PENDING SENT VOIDED }
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+enum OrderStatus {
+  PENDING
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+enum TableStatus {
+  FREE
+  OCCUPIED
+  RESERVED
+}
+enum PaymentMode {
+  CASH
+  UPI
+  CARD
+  CREDIT
+}
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+}
+enum ExpenseCategory {
+  INGREDIENTS
+  UTILITIES
+  SALARIES
+  MAINTENANCE
+  MARKETING
+  OTHER
+}
+enum StockTxType {
+  PURCHASE
+  SALE
+  WASTE
+  ADJUST
+  RETURN
+}
+enum KotTicketStatus {
+  PENDING
+  SENT
+  PLATED
+  VOIDED
+}
+enum KotLineStatus {
+  PENDING
+  SENT
+  VOIDED
+}
 
 // === Tenant registry ===
 
