@@ -2,9 +2,14 @@ import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
+import { randomUUID } from "crypto";
 
 function genCode() {
   return "GC-" + Math.random().toString(36).toUpperCase().slice(2, 10);
+}
+
+function newId() {
+  return randomUUID().replace(/-/g, "").slice(0, 25);
 }
 
 export async function GET(req: NextRequest) {
@@ -29,17 +34,17 @@ export async function POST(req: NextRequest) {
     const code = genCode();
     const card = await (prisma as any).giftCard.create({
       data: {
-        id: require("crypto").randomUUID().replace(/-/g, "").slice(0, 24),
+        id: newId(),
         code,
         initialValue,
         balance: initialValue,
-        recipientName,
-        recipientPhone,
+        recipientName: recipientName || null,
+        recipientPhone: recipientPhone || null,
         purchasedById: session.userId,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         transactions: {
           create: {
-            id: require("crypto").randomUUID().replace(/-/g, "").slice(0, 24),
+            id: newId(),
             type: "ISSUE",
             amount: initialValue,
             balanceAfter: initialValue,
