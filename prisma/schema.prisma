@@ -122,6 +122,7 @@ model User {
   phone          String?
   kitchenStation String?
   isActive       Boolean            @default(true)
+  salary         Float              @default(0)
   createdAt      DateTime           @default(now())
   ordersCreated  Order[]            @relation("OrderCreatedBy")
   expenses       Expense[]          @relation("ExpenseAddedBy")
@@ -713,4 +714,40 @@ model InvoiceDraft {
   updatedAt    DateTime @updatedAt
 
   @@index([tenantId], map: "idx_invoicedraft_tenant")
+}
+
+// === Gift Cards ===
+
+model GiftCard {
+  id           String               @id @default(cuid())
+  tenantId     String               @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  code         String
+  initialValue Float
+  balance      Float
+  isActive     Boolean              @default(true)
+  expiresAt    DateTime?
+  recipientName  String?
+  recipientPhone String?
+  purchasedById  String?
+  purchasedAt    DateTime           @default(now())
+  transactions   GiftCardTxn[]
+
+  @@unique([tenantId, code], map: "GiftCard_tenant_code_unique")
+  @@index([tenantId], map: "idx_giftcard_tenant")
+}
+
+model GiftCardTxn {
+  id          String    @id @default(cuid())
+  tenantId    String    @map("tenant_id") @db.Uuid @default(dbgenerated("'9d67c11e-fc4b-46c9-bd2e-4ec775bb8868'::uuid"))
+  giftCardId  String
+  giftCard    GiftCard  @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
+  type        String    // ISSUE | REDEEM | TOPUP | VOID
+  amount      Float
+  balanceAfter Float
+  orderId     String?
+  note        String?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId], map: "idx_giftcardtxn_tenant")
+  @@index([giftCardId])
 }

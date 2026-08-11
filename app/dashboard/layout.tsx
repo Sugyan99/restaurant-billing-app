@@ -27,6 +27,7 @@ const NAV: { title: string; items: { href: string; icon: string; label: string; 
       { href: "/dashboard/inventory",      icon: "📦", label: "Inventory & Stock" },
       { href: "/dashboard/purchase-orders",icon: "🛒", label: "Purchase Orders" },
       { href: "/dashboard/customers",      icon: "👤", label: "Customers & Loyalty" },
+      { href: "/dashboard/gift-cards",     icon: "🎁", label: "Gift Cards" },
       { href: "/dashboard/finance",        icon: "💰", label: "Finance" },
     ],
   },
