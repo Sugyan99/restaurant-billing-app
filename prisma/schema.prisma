@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ───────────────────────────────────────────────────────────────────
+// === Enums ===
 
 enum Role {
   OWNER
@@ -25,7 +25,7 @@ enum StockTxType  { PURCHASE SALE WASTE ADJUST RETURN }
 enum KotTicketStatus { PENDING SENT PLATED VOIDED }
 enum KotLineStatus   { PENDING SENT VOIDED }
 
-// ─── Tenant registry ─────────────────────────────────────────────────────────
+// === Tenant registry ===
 
 model Tenant {
   id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -61,12 +61,12 @@ model TenantMembership {
   @@map("tenant_memberships")
 }
 
-// ─── Default tenant UUID (temporary until all routes supply tenantId) ─────────
+// === Default tenant UUID (temporary until all routes supply tenantId) ===
 // Matches the "RESTO BILL" seed tenant created in Phase 2.
 // Remove @default(...) from each model once all API routes inject tenantId.
 // Value: 9d67c11e-fc4b-46c9-bd2e-4ec775bb8868
 
-// ─── Identity ────────────────────────────────────────────────────────────────
+// === Identity ===
 
 model User {
   id             String             @id @default(cuid())
@@ -85,7 +85,7 @@ model User {
   memberships    TenantMembership[]
 }
 
-// ─── Core restaurant entities ────────────────────────────────────────────────
+// === Core restaurant entities ===
 
 model RestaurantTable {
   id           String          @id @default(cuid())
@@ -257,7 +257,7 @@ model BillDraft {
   @@index([tenantId], map: "idx_billdraft_tenant")
 }
 
-// ─── Finance ─────────────────────────────────────────────────────────────────
+// === Finance ===
 
 model Expense {
   id          String          @id @default(cuid())
@@ -326,7 +326,7 @@ model Settings {
   @@index([tenantId], map: "idx_settings_tenant")
 }
 
-// ─── Inventory ───────────────────────────────────────────────────────────────
+// === Inventory ===
 
 model Vendor {
   id             String          @id @default(cuid())
@@ -432,7 +432,7 @@ model PurchaseOrderItem {
   @@index([tenantId], map: "idx_poi_tenant")
 }
 
-// ─── Reservations / Waitlist ──────────────────────────────────────────────────
+// === Reservations / Waitlist ===
 
 model Reservation {
   id            String           @id @default(cuid())
@@ -467,7 +467,7 @@ model Waitlist {
   @@index([tenantId], map: "idx_waitlist_tenant")
 }
 
-// ─── KOT / KDS ───────────────────────────────────────────────────────────────
+// === KOT / KDS ===
 
 model KotTicket {
   id        String          @id @default(cuid())
@@ -505,7 +505,7 @@ model KotTicketLine {
   @@index([orderItemId])
 }
 
-// ─── QR Ordering ─────────────────────────────────────────────────────────────
+// === QR Ordering ===
 
 model QrOrder {
   id            String     @id @default(cuid())
@@ -538,7 +538,7 @@ model QrFeedback {
   @@index([tenantId], map: "idx_qrfeedback_tenant")
 }
 
-// ─── CRM / Loyalty ───────────────────────────────────────────────────────────
+// === CRM / Loyalty ===
 
 model Discount {
   id        String   @id @default(cuid())
@@ -602,7 +602,7 @@ model CustomerFeedback {
   @@index([customerId])
 }
 
-// ─── Audit / Notifications ───────────────────────────────────────────────────
+// === Audit / Notifications ===
 
 model AuditLog {
   id        String   @id @default(cuid())
@@ -652,7 +652,7 @@ model Notification {
   @@index([role])
 }
 
-// ─── Drafts ──────────────────────────────────────────────────────────────────
+// === Drafts ===
 
 model InvoiceDraft {
   id           String   @id @default(cuid())
