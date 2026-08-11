@@ -84,8 +84,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get the owner's active tenant from their JWT
-    const session = verifyToken(token!);
+    // Get the owner's active tenant from their JWT (session already verified above)
     const ownerTenantId = session?.tenantId;
 
     const newStaff = await prisma.$transaction(async (tx) => {
