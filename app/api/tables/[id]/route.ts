@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function PUT(
@@ -12,19 +12,21 @@ export async function PUT(
     if (isAuthError(session)) return session;
     const { id } = await params;
     const body = await req.json();
-    const table = await prisma.restaurantTable.update({
-      where: { id },
-      data: {
-        ...(body.number !== undefined && { number: body.number }),
-        ...(body.capacity !== undefined && { capacity: body.capacity }),
-        ...(body.status !== undefined && { status: body.status }),
-        ...(body.posX !== undefined && { posX: body.posX }),
-        ...(body.posY !== undefined && { posY: body.posY }),
-        ...(body.shape !== undefined && { shape: body.shape }),
-        ...(body.section !== undefined && { section: body.section }),
-        ...(body.mergedWith !== undefined && { mergedWith: body.mergedWith }),
-      },
-    });
+    const table = await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.restaurantTable.update({
+        where: { id },
+        data: {
+          ...(body.number !== undefined && { number: body.number }),
+          ...(body.capacity !== undefined && { capacity: body.capacity }),
+          ...(body.status !== undefined && { status: body.status }),
+          ...(body.posX !== undefined && { posX: body.posX }),
+          ...(body.posY !== undefined && { posY: body.posY }),
+          ...(body.shape !== undefined && { shape: body.shape }),
+          ...(body.section !== undefined && { section: body.section }),
+          ...(body.mergedWith !== undefined && { mergedWith: body.mergedWith }),
+        },
+      })
+    );
     return NextResponse.json({ table });
   });
 }
@@ -37,16 +39,22 @@ export async function DELETE(
     const session = requireAuth(req, ["OWNER", "MANAGER"]);
     if (isAuthError(session)) return session;
     const { id } = await params;
-    const activeOrders = await prisma.order.count({
-      where: { tableId: id, status: { in: ["PENDING", "PREPARING", "READY"] } },
+
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const activeOrders = await tx.order.count({
+        where: { tableId: id, status: { in: ["PENDING", "PREPARING", "READY"] }, tenantId: session.tenantId },
+      });
+      if (activeOrders > 0) return { hasActive: true } as const;
+      await tx.restaurantTable.delete({ where: { id } });
+      return { success: true } as const;
     });
-    if (activeOrders > 0) {
+
+    if ("hasActive" in result) {
       return NextResponse.json(
         { error: "This table has active orders. Complete them first." },
         { status: 400 }
       );
     }
-    await prisma.restaurantTable.delete({ where: { id } });
     return NextResponse.json({ success: true });
   });
 }

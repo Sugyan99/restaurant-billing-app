@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(
@@ -9,43 +9,48 @@ export async function GET(
 ) {
   return safeHandler("customers/[id]/GET", async () => {
     const session = requireAuth(req);
-  if (isAuthError(session)) return session;
-  const { id } = await params;
+    if (isAuthError(session)) return session;
+    const { id } = await params;
 
-  const customer = await prisma.customer.findUnique({ where: { id } });
-  if (!customer) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const data = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const customer = await tx.customer.findUnique({ where: { id } });
+      if (!customer) return null;
 
-  const orders = await prisma.order.findMany({
-    where: { customerPhone: customer.phone },
-    include: {
-      items: { include: { menuItem: { select: { name: true } } } },
-      bill: { select: { total: true, paymentStatus: true, paymentMode: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
+      const orders = await tx.order.findMany({
+        where: { customerPhone: customer.phone, tenantId: session.tenantId },
+        include: {
+          items: { include: { menuItem: { select: { name: true } } } },
+          bill: { select: { total: true, paymentStatus: true, paymentMode: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
 
-  // Derive favorite items from all orders
-  const itemCount: Record<string, { name: string; count: number }> = {};
-  for (const order of orders) {
-    for (const item of order.items) {
-      const name = item.menuItem?.name ?? "Unknown";
-      if (!itemCount[name]) itemCount[name] = { name, count: 0 };
-      itemCount[name].count += item.quantity;
+      const feedback = await tx.customerFeedback.findMany({
+        where: { customerId: customer.id, tenantId: session.tenantId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      });
+
+      return { customer, orders, feedback };
+    });
+
+    if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const itemCount: Record<string, { name: string; count: number }> = {};
+    for (const order of data.orders) {
+      for (const item of order.items) {
+        const name = item.menuItem?.name ?? "Unknown";
+        if (!itemCount[name]) itemCount[name] = { name, count: 0 };
+        itemCount[name].count += item.quantity;
+      }
     }
-  }
-  const favoriteItems = Object.values(itemCount)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
+    const favoriteItems = Object.values(itemCount)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
 
-  const feedback = await prisma.customerFeedback.findMany({
-    where: { customerId: customer.id },
-    orderBy: { createdAt: "desc" },
-    take: 5,
+    return NextResponse.json({ customer: data.customer, orders: data.orders, favoriteItems, feedback: data.feedback });
   });
-
-  return NextResponse.json({ customer, orders, favoriteItems, feedback });
-});
 }
 
 export async function PUT(
@@ -54,24 +59,25 @@ export async function PUT(
 ) {
   return safeHandler("customers/[id]/PUT", async () => {
     const session = requireAuth(req, ["OWNER", "MANAGER"]);
-  if (isAuthError(session)) return session;
-  const { id } = await params;
-  const body = await req.json();
-  const customer = await prisma.customer.update({
-    where: { id },
-    data: {
-      name: body.name,
-      email: body.email || null,
-      address: body.address || null,
-      notes: body.notes || null,
-      birthday: body.birthday || null,
-      gender: body.gender || null,
-      creditBalance: Math.max(0, body.creditBalance ?? 0),
-    },
+    if (isAuthError(session)) return session;
+    const { id } = await params;
+    const body = await req.json();
+    const customer = await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.customer.update({
+        where: { id },
+        data: {
+          name: body.name,
+          email: body.email || null,
+          address: body.address || null,
+          notes: body.notes || null,
+          birthday: body.birthday || null,
+          gender: body.gender || null,
+          creditBalance: Math.max(0, body.creditBalance ?? 0),
+        },
+      })
+    );
+    return NextResponse.json({ customer });
   });
-  return NextResponse.json({ customer
-  });
-});
 }
 
 export async function DELETE(
@@ -82,15 +88,21 @@ export async function DELETE(
     const session = requireAuth(req, ["OWNER"]);
     if (isAuthError(session)) return session;
     const { id } = await params;
-    const customer = await prisma.customer.findUnique({ where: { id } });
-    if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
-    // Check no active orders linked to this phone
-    const active = await prisma.order.count({
-      where: { customerPhone: customer.phone, status: { in: ["PENDING","PREPARING","READY"] } },
+
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const customer = await tx.customer.findUnique({ where: { id } });
+      if (!customer) return { notFound: true } as const;
+      const active = await tx.order.count({
+        where: { customerPhone: customer.phone, status: { in: ["PENDING", "PREPARING", "READY"] }, tenantId: session.tenantId },
+      });
+      if (active > 0) return { hasActive: true } as const;
+      await tx.order.updateMany({ where: { customerId: id, tenantId: session.tenantId }, data: { customerId: null } });
+      await tx.customer.delete({ where: { id } });
+      return { success: true } as const;
     });
-    if (active > 0) return NextResponse.json({ error: "Customer has active orders" }, { status: 400 });
-    await prisma.order.updateMany({ where: { customerId: id }, data: { customerId: null } });
-    await prisma.customer.delete({ where: { id } });
+
+    if ("notFound" in result) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    if ("hasActive" in result) return NextResponse.json({ error: "Customer has active orders" }, { status: 400 });
     return NextResponse.json({ success: true });
   });
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
 
@@ -12,16 +12,18 @@ export async function GET(req: NextRequest) {
   const session = requireAuth(req);
   if (isAuthError(session)) return session;
 
-  const categories = await prisma.category.findMany({
-    orderBy: { sortOrder: "asc" },
-    include: { items: true },
-  });
+  const categories = await withTenant(session.tenantId, session.userId, (tx) =>
+    tx.category.findMany({
+      where: { tenantId: session.tenantId },
+      orderBy: { sortOrder: "asc" },
+      include: { items: true },
+    })
+  );
 
   return NextResponse.json({ categories });
 }
 
 export async function POST(req: NextRequest) {
-  // Only owner/manager can change the menu structure
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
@@ -32,7 +34,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const category = await prisma.category.create({ data: parsed.data });
+    const category = await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.category.create({ data: { ...parsed.data, tenantId: session.tenantId } })
+    );
     return NextResponse.json({ category }, { status: 201 });
   } catch {
     return NextResponse.json(

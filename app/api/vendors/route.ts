@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
 
@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
   return safeHandler("vendors/GET", async () => {
     const session = requireAuth(req, ["OWNER", "MANAGER"]);
     if (isAuthError(session)) return session;
-    const vendors = await prisma.vendor.findMany({ orderBy: { name: "asc" } });
+    const vendors = await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.vendor.findMany({ where: { tenantId: session.tenantId }, orderBy: { name: "asc" } })
+    );
     return NextResponse.json({ vendors });
   });
 }
@@ -29,9 +31,11 @@ export async function POST(req: NextRequest) {
     if (isAuthError(session)) return session;
     const parsed = schema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
-    const vendor = await prisma.vendor.create({
-      data: { id: `vnd_${Date.now()}`, ...parsed.data },
-    });
+    const vendor = await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.vendor.create({
+        data: { id: `vnd_${Date.now()}`, tenantId: session.tenantId, ...parsed.data },
+      })
+    );
     return NextResponse.json({ vendor }, { status: 201 });
   });
 }

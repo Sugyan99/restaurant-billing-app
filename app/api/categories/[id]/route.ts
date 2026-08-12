@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function PUT(
@@ -9,19 +9,20 @@ export async function PUT(
 ) {
   return safeHandler("categories/[id]/PUT", async () => {
     const session = requireAuth(req, ["OWNER", "MANAGER"]);
-  if (isAuthError(session)) return session;
+    if (isAuthError(session)) return session;
 
-  const { id } = await params;
-  const body = await req.json();
+    const { id } = await params;
+    const body = await req.json();
 
-  const category = await prisma.category.update({
-    where: { id },
-    data: { name: body.name, sortOrder: body.sortOrder },
+    const category = await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.category.update({
+        where: { id },
+        data: { name: body.name, sortOrder: body.sortOrder },
+      })
+    );
+
+    return NextResponse.json({ category });
   });
-
-  return NextResponse.json({ category
-  });
-});
 }
 
 export async function DELETE(
@@ -30,20 +31,24 @@ export async function DELETE(
 ) {
   return safeHandler("categories/[id]/DELETE", async () => {
     const session = requireAuth(req, ["OWNER", "MANAGER"]);
-  if (isAuthError(session)) return session;
+    if (isAuthError(session)) return session;
 
-  const { id } = await params;
+    const { id } = await params;
 
-  const itemCount = await prisma.menuItem.count({ where: { categoryId: id } });
-  if (itemCount > 0) {
-    return NextResponse.json(
-      { error: "Move or delete the items in this category first" },
-      { status: 400 }
-    );
-  }
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const itemCount = await tx.menuItem.count({ where: { categoryId: id, tenantId: session.tenantId } });
+      if (itemCount > 0) return { error: true } as const;
+      await tx.category.delete({ where: { id } });
+      return { success: true } as const;
+    });
 
-  await prisma.category.delete({ where: { id } });
-  return NextResponse.json({ success: true
+    if ("error" in result && result.error) {
+      return NextResponse.json(
+        { error: "Move or delete the items in this category first" },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
   });
-});
 }

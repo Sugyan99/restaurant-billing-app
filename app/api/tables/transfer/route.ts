@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function POST(req: NextRequest) {
@@ -11,19 +11,23 @@ export async function POST(req: NextRequest) {
     if (!fromTableId || !toTableId) {
       return NextResponse.json({ error: "fromTableId and toTableId required" }, { status: 400 });
     }
-    const toTable = await prisma.restaurantTable.findUnique({ where: { id: toTableId } });
-    if (!toTable) return NextResponse.json({ error: "Destination table not found" }, { status: 404 });
-    if (toTable.status === "OCCUPIED") {
-      return NextResponse.json({ error: "Destination table is occupied" }, { status: 400 });
-    }
-    // Move all active orders
-    await prisma.order.updateMany({
-      where: { tableId: fromTableId, status: { in: ["PENDING", "PREPARING", "READY"] } },
-      data: { tableId: toTableId },
+
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const toTable = await tx.restaurantTable.findUnique({ where: { id: toTableId } });
+      if (!toTable) return { notFound: true } as const;
+      if (toTable.status === "OCCUPIED") return { occupied: true } as const;
+
+      await tx.order.updateMany({
+        where: { tableId: fromTableId, status: { in: ["PENDING", "PREPARING", "READY"] }, tenantId: session.tenantId },
+        data: { tableId: toTableId },
+      });
+      await tx.restaurantTable.update({ where: { id: fromTableId }, data: { status: "FREE" } });
+      await tx.restaurantTable.update({ where: { id: toTableId }, data: { status: "OCCUPIED" } });
+      return { success: true } as const;
     });
-    // Update statuses
-    await prisma.restaurantTable.update({ where: { id: fromTableId }, data: { status: "FREE" } });
-    await prisma.restaurantTable.update({ where: { id: toTableId }, data: { status: "OCCUPIED" } });
+
+    if ("notFound" in result) return NextResponse.json({ error: "Destination table not found" }, { status: 404 });
+    if ("occupied" in result) return NextResponse.json({ error: "Destination table is occupied" }, { status: 400 });
     return NextResponse.json({ success: true });
   });
 }
