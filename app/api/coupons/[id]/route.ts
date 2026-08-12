@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function PUT(
@@ -12,11 +12,9 @@ export async function PUT(
     if (isAuthError(session)) return session;
     const { id } = await params;
     const body = await req.json();
-
-    const coupon = await prisma.coupon.update({
-      where: { id },
-      data: { isActive: body.isActive ?? true },
-    });
+    const coupon = await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.coupon.update({ where: { id }, data: { isActive: body.isActive ?? true } })
+    );
     return NextResponse.json({ coupon });
   });
 }
@@ -29,7 +27,9 @@ export async function DELETE(
     const session = requireAuth(req, ["OWNER"]);
     if (isAuthError(session)) return session;
     const { id } = await params;
-    await prisma.coupon.delete({ where: { id } });
+    await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.coupon.delete({ where: { id } })
+    );
     return NextResponse.json({ success: true });
   });
 }

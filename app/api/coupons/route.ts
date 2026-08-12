@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
 
@@ -22,23 +22,25 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get("code");
 
-    // Validate a specific coupon code
-    if (code) {
-      const coupon = await prisma.coupon.findFirst({ where: { code: code.toUpperCase(), tenantId: session.tenantId } });
-      if (!coupon) return NextResponse.json({ error: "Invalid coupon" }, { status: 404 });
-      if (!coupon.isActive) return NextResponse.json({ error: "Coupon is inactive" }, { status: 400 });
-      if (coupon.expiresAt && coupon.expiresAt < new Date())
-        return NextResponse.json({ error: "Coupon expired" }, { status: 400 });
-      if (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit)
-        return NextResponse.json({ error: "Coupon usage limit reached" }, { status: 400 });
-      return NextResponse.json({ coupon });
-    }
-
-    const coupons = await prisma.coupon.findMany({
-      include: { _count: { select: { usages: true } } },
-      orderBy: { createdAt: "desc" },
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      if (code) {
+        const coupon = await tx.coupon.findFirst({ where: { code: code.toUpperCase(), tenantId: session.tenantId } });
+        if (!coupon) return { error: "Invalid coupon", status: 404 } as const;
+        if (!coupon.isActive) return { error: "Coupon is inactive", status: 400 } as const;
+        if (coupon.expiresAt && coupon.expiresAt < new Date()) return { error: "Coupon expired", status: 400 } as const;
+        if (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit) return { error: "Coupon usage limit reached", status: 400 } as const;
+        return { coupon } as const;
+      }
+      const coupons = await tx.coupon.findMany({
+        where: { tenantId: session.tenantId },
+        include: { _count: { select: { usages: true } } },
+        orderBy: { createdAt: "desc" },
+      });
+      return { coupons } as const;
     });
-    return NextResponse.json({ coupons });
+
+    if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(result);
   });
 }
 
@@ -57,16 +59,20 @@ export async function POST(req: NextRequest) {
     if (type === "PERCENT" && value > 100)
       return NextResponse.json({ error: "Percent discount cannot exceed 100%" }, { status: 400 });
 
-    const existing = await prisma.coupon.findFirst({ where: { code, tenantId: session.tenantId } });
-    if (existing) return NextResponse.json({ error: "Coupon code already exists" }, { status: 409 });
-
-    const coupon = await prisma.coupon.create({
-      data: {
-        code, description: description || null, type, value, minOrder, usageLimit,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
-        tenantId: session.tenantId,
-      },
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const existing = await tx.coupon.findFirst({ where: { code, tenantId: session.tenantId } });
+      if (existing) return { conflict: true } as const;
+      const coupon = await tx.coupon.create({
+        data: {
+          code, description: description || null, type, value, minOrder, usageLimit,
+          expiresAt: expiresAt ? new Date(expiresAt) : null,
+          tenantId: session.tenantId,
+        },
+      });
+      return { coupon } as const;
     });
-    return NextResponse.json({ coupon }, { status: 201 });
+
+    if ("conflict" in result) return NextResponse.json({ error: "Coupon code already exists" }, { status: 409 });
+    return NextResponse.json({ coupon: (result as { coupon: unknown }).coupon }, { status: 201 });
   });
 }
