@@ -1,10 +1,8 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
-// POST /api/orders/[id]/split — move selected items to a new KOT
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -12,7 +10,6 @@ export async function POST(
   return safeHandler("orders/[id]/split/POST", async () => {
     const session = requireAuth(req);
     if (isAuthError(session)) return session;
-
     const { id } = await params;
     const { itemIds } = await req.json() as { itemIds: string[] };
 
@@ -20,21 +17,16 @@ export async function POST(
       return NextResponse.json({ error: "Select at least one item to split" }, { status: 400 });
     }
 
-    const original = await prisma.order.findUnique({
-      where: { id },
-      include: { items: true },
-    });
-    if (!original) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const original = await tx.order.findUnique({ where: { id }, include: { items: true } });
+      if (!original) return { notFound: true } as const;
 
-    const remainingItems = original.items.filter((i: { id: string }) => !itemIds.includes(i.id));
-    if (remainingItems.length === 0) {
-      return NextResponse.json({ error: "Cannot move all items — original KOT would be empty" }, { status: 400 });
-    }
+      const remainingItems = original.items.filter((i) => !itemIds.includes(i.id));
+      if (remainingItems.length === 0) return { emptyOriginal: true } as const;
 
-    const newOrder = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Create new order with same context
       const created = await tx.order.create({
         data: {
+          tenantId: session.tenantId,
           type: original.type,
           status: "PENDING",
           tableId: original.tableId ?? undefined,
@@ -45,17 +37,21 @@ export async function POST(
           isPriority: original.isPriority,
         },
       });
-      // Re-assign selected items to new order
+
       await tx.orderItem.updateMany({
-        where: { id: { in: itemIds }, orderId: id },
+        where: { id: { in: itemIds }, orderId: id, tenantId: session.tenantId },
         data: { orderId: created.id },
       });
-      return tx.order.findUnique({
+
+      const newOrder = await tx.order.findUnique({
         where: { id: created.id },
         include: { items: { include: { menuItem: true } }, table: true },
       });
+      return { newOrder } as const;
     });
 
-    return NextResponse.json({ newOrder });
+    if ("notFound" in result) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    if ("emptyOriginal" in result) return NextResponse.json({ error: "Cannot move all items — original KOT would be empty" }, { status: 400 });
+    return NextResponse.json({ newOrder: (result as { newOrder: unknown }).newOrder });
   });
 }

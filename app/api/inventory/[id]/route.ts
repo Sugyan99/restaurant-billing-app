@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function PUT(
@@ -9,27 +9,26 @@ export async function PUT(
 ) {
   return safeHandler("inventory/[id]/PUT", async () => {
     const session = requireAuth(req, ["OWNER", "MANAGER"]);
-  if (isAuthError(session)) return session;
-
-  const { id } = await params;
-  const body = await req.json();
-
-  const item = await prisma.inventoryItem.update({
-    where: { id },
-    data: {
-      name: body.name,
-      unit: body.unit,
-      currentStock: body.currentStock,
-      minStock: body.minStock,
-      costPerUnit: body.costPerUnit,
-      category: body.category ?? "General",
-      vendorId: body.vendorId ?? null,
-      updatedAt: new Date(),
-    },
+    if (isAuthError(session)) return session;
+    const { id } = await params;
+    const body = await req.json();
+    const item = await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.inventoryItem.update({
+        where: { id },
+        data: {
+          name: body.name,
+          unit: body.unit,
+          currentStock: body.currentStock,
+          minStock: body.minStock,
+          costPerUnit: body.costPerUnit,
+          category: body.category ?? "General",
+          vendorId: body.vendorId ?? null,
+          updatedAt: new Date(),
+        },
+      })
+    );
+    return NextResponse.json({ item });
   });
-  return NextResponse.json({ item
-  });
-});
 }
 
 export async function DELETE(
@@ -38,11 +37,11 @@ export async function DELETE(
 ) {
   return safeHandler("inventory/[id]/DELETE", async () => {
     const session = requireAuth(req, ["OWNER"]);
-  if (isAuthError(session)) return session;
-
-  const { id } = await params;
-  await prisma.inventoryItem.delete({ where: { id } });
-  return NextResponse.json({ success: true
+    if (isAuthError(session)) return session;
+    const { id } = await params;
+    await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.inventoryItem.delete({ where: { id } })
+    );
+    return NextResponse.json({ success: true });
   });
-});
 }

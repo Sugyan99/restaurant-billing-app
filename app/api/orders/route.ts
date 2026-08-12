@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
@@ -22,7 +22,7 @@ const createOrderSchema = z.object({
   isPriority:    z.boolean().optional().default(false),
   kotNote:       z.string().max(300).optional(),
   items:         z.array(orderItemSchema).min(1, "At least one item required"),
-  force:         z.boolean().optional().default(false), // bypass duplicate check
+  force:         z.boolean().optional().default(false),
 });
 
 export async function GET(req: NextRequest) {
@@ -33,16 +33,17 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
 
-    const orders = await prisma.order.findMany({
-      where: status ? { status: status as "PENDING"|"PREPARING"|"READY"|"SERVED"|"CANCELLED" } : {},
-      include: {
-        items: { include: { menuItem: true } },
-        table: true,
-        bill:  true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
+    const orders = await withTenant(session.tenantId, session.userId, (tx) =>
+      tx.order.findMany({
+        where: {
+          tenantId: session.tenantId,
+          ...(status ? { status: status as "PENDING"|"PREPARING"|"READY"|"SERVED"|"CANCELLED" } : {}),
+        },
+        include: { items: { include: { menuItem: true } }, table: true, bill: true },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      })
+    );
 
     return NextResponse.json({ orders });
   });
@@ -64,73 +65,52 @@ export async function POST(req: NextRequest) {
 
     const { type, tableId, customerName, customerPhone, isPriority, kotNote, items, force } = parsed.data;
 
-    // ── Validation ──────────────────────────────────────────────────────────
     if (type === "DINE_IN" && !tableId) {
       return NextResponse.json({ error: "Table is required for Dine-In orders" }, { status: 400 });
     }
 
-    // Duplicate prevention: block new KOT on a table with an active order
-    if (type === "DINE_IN" && tableId && !force) {
-      const existingOrder = await prisma.order.findFirst({
-        where: { tableId, status: { in: ["PENDING", "PREPARING", "READY"] } },
-        select: { id: true, orderNumber: true },
-      });
-      if (existingOrder) {
-        return NextResponse.json(
-          {
-            error: `Table already has active KOT #${existingOrder.orderNumber}. Add items to it or use force=true to create a parallel KOT.`,
-            existingOrderId:     existingOrder.id,
-            existingOrderNumber: existingOrder.orderNumber,
-            code: "DUPLICATE_ORDER",
-          },
-          { status: 409 }
-        );
-      }
-    }
-
-    // Deduplicate items (same menuItemId → merge quantities)
+    // Deduplicate items
     const merged = new Map<string, { menuItemId: string; quantity: number; notes?: string; kitchen?: string }>();
     for (const item of items) {
       const existing = merged.get(item.menuItemId);
-      if (existing) {
-        existing.quantity += item.quantity;
-      } else {
-        merged.set(item.menuItemId, { ...item });
-      }
+      if (existing) { existing.quantity += item.quantity; }
+      else { merged.set(item.menuItemId, { ...item }); }
     }
     const deduped = Array.from(merged.values());
-
-    // Server-side price lookup — never trust client prices
     const menuItemIds = deduped.map((i) => i.menuItemId);
-    const menuItems   = await prisma.menuItem.findMany({ where: { id: { in: menuItemIds } } });
 
-    if (menuItems.length !== menuItemIds.length) {
-      return NextResponse.json({ error: "One or more menu items not found" }, { status: 400 });
-    }
-    type MI = { id: string; name: string; price: number; taxRate: number | null; isAvailable: boolean };
-    const typedMenuItems = menuItems as MI[];
-    const unavailable = typedMenuItems.filter((m) => !m.isAvailable);
-    if (unavailable.length > 0) {
-      return NextResponse.json(
-        { error: `Unavailable items: ${unavailable.map((m) => m.name).join(", ")}` },
-        { status: 400 }
-      );
-    }
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      // Duplicate KOT check
+      if (type === "DINE_IN" && tableId && !force) {
+        const existingOrder = await tx.order.findFirst({
+          where: { tableId, tenantId: session.tenantId, status: { in: ["PENDING", "PREPARING", "READY"] } },
+          select: { id: true, orderNumber: true },
+        });
+        if (existingOrder) return { duplicate: true, existingOrder } as const;
+      }
 
-    const priceMap = new Map<string, PriceEntry>(typedMenuItems.map((m) => [m.id, { price: m.price, taxRate: m.taxRate }]));
+      // Server-side price lookup
+      const menuItems = await tx.menuItem.findMany({
+        where: { id: { in: menuItemIds }, tenantId: session.tenantId },
+      });
+      type MI = { id: string; name: string; price: number; taxRate: number | null; isAvailable: boolean };
+      const typedMenuItems = menuItems as MI[];
 
-    // ── Transaction: create order + audit log + notification ────────────────
-    const order = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Verify table exists and set OCCUPIED
+      if (typedMenuItems.length !== menuItemIds.length) return { missingItems: true } as const;
+      const unavailable = typedMenuItems.filter((m) => !m.isAvailable);
+      if (unavailable.length > 0) return { unavailable: unavailable.map((m) => m.name) } as const;
+
+      const priceMap = new Map<string, PriceEntry>(typedMenuItems.map((m) => [m.id, { price: m.price, taxRate: m.taxRate }]));
+
+      // Verify table
       if (type === "DINE_IN" && tableId) {
         const table = await tx.restaurantTable.findUnique({ where: { id: tableId } });
-        if (!table) {
-          throw new Error("Table not found");
-        }
+        if (!table) return { noTable: true } as const;
       }
 
       const created = await tx.order.create({
         data: {
+          tenantId: session.tenantId,
           type,
           tableId:       type === "DINE_IN" ? tableId : null,
           customerName:  customerName  || null,
@@ -140,6 +120,7 @@ export async function POST(req: NextRequest) {
           createdById:   session.userId,
           items: {
             create: deduped.map((i) => ({
+              tenantId:   session.tenantId,
               menuItemId: i.menuItemId,
               quantity:   i.quantity,
               notes:      i.notes   || null,
@@ -156,27 +137,20 @@ export async function POST(req: NextRequest) {
         await tx.restaurantTable.update({ where: { id: tableId }, data: { status: "OCCUPIED" } });
       }
 
-      // Audit log
       await tx.auditLog.create({
         data: {
+          tenantId: session.tenantId,
           action:   "CREATE_KOT",
           entity:   "Order",
           entityId: created.id,
           userId:   session.userId,
-          meta: {
-            orderNumber: created.orderNumber,
-            type,
-            tableId:   tableId ?? null,
-            itemCount: deduped.length,
-            isPriority,
-            kotNote:   kotNote ?? null,
-          },
+          meta: { orderNumber: created.orderNumber, type, tableId: tableId ?? null, itemCount: deduped.length, isPriority, kotNote: kotNote ?? null } as Prisma.JsonObject,
         },
       });
 
-      // Kitchen notification
       await tx.notification.create({
         data: {
+          tenantId: session.tenantId,
           type:    "NEW_KOT",
           title:   `New KOT #${created.orderNumber}${isPriority ? " ★ PRIORITY" : ""}`,
           message: `${type === "DINE_IN" && created.table ? `Table ${created.table.number}` : type} · ${deduped.length} item(s)`,
@@ -184,9 +158,24 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return created;
+      return { order: created } as const;
     });
 
-    return NextResponse.json({ order }, { status: 201 });
+    if ("duplicate" in result && result.duplicate) {
+      return NextResponse.json(
+        {
+          error: `Table already has active KOT #${result.existingOrder.orderNumber}. Add items to it or use force=true to create a parallel KOT.`,
+          existingOrderId:     result.existingOrder.id,
+          existingOrderNumber: result.existingOrder.orderNumber,
+          code: "DUPLICATE_ORDER",
+        },
+        { status: 409 }
+      );
+    }
+    if ("missingItems" in result) return NextResponse.json({ error: "One or more menu items not found" }, { status: 400 });
+    if ("unavailable" in result) return NextResponse.json({ error: `Unavailable items: ${result.unavailable.join(", ")}` }, { status: 400 });
+    if ("noTable" in result) return NextResponse.json({ error: "Table not found" }, { status: 404 });
+
+    return NextResponse.json({ order: (result as { order: unknown }).order }, { status: 201 });
   });
 }

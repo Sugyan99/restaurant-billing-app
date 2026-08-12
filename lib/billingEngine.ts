@@ -294,11 +294,12 @@ export async function createInvoice(
 
 // ─── Bill upsert (used internally + by order auto-bill) ──────────────────────
 
-export async function createBillInTx(tx: Tx, orderId: string, calc: BillCalculation) {
+export async function createBillInTx(tx: Tx, orderId: string, calc: BillCalculation, tenantId?: string) {
   return tx.bill.upsert({
     where: { orderId },
     create: {
       orderId,
+      ...(tenantId && { tenantId }),
       subtotal: calc.subtotal,
       cgst: calc.cgst,
       sgst: calc.sgst,
@@ -314,7 +315,7 @@ export async function createBillInTx(tx: Tx, orderId: string, calc: BillCalculat
 
 // ─── Post-payment finalization ────────────────────────────────────────────────
 
-async function deductStockForOrder(tx: Tx, orderId: string) {
+async function deductStockForOrder(tx: Tx, orderId: string, tenantId?: string) {
   try {
     const order = await tx.order.findUnique({
       where: { id: orderId },
@@ -340,6 +341,7 @@ async function deductStockForOrder(tx: Tx, orderId: string) {
             balanceAfter: newStock,
             note: `Order #${order.orderNumber}`,
             referenceId: orderId,
+            ...(tenantId && { tenantId }),
           },
         });
         // Low stock notification
@@ -351,6 +353,7 @@ async function deductStockForOrder(tx: Tx, orderId: string) {
               title: "Low Stock Alert",
               message: `${inv.name} is low: ${newStock.toFixed(2)} ${inv.unit} remaining`,
               role: "MANAGER",
+              ...(tenantId && { tenantId }),
             },
           });
         }
@@ -363,10 +366,11 @@ async function deductStockForOrder(tx: Tx, orderId: string) {
 
 export async function finalizePayment(
   tx: Tx,
-  bill: { orderId: string; total: number; order: { tableId: string | null; customerPhone: string | null } }
+  bill: { orderId: string; total: number; order: { tableId: string | null; customerPhone: string | null } },
+  tenantId?: string
 ) {
   await tx.order.update({ where: { id: bill.orderId }, data: { status: "SERVED" } });
-  await deductStockForOrder(tx, bill.orderId);
+  await deductStockForOrder(tx, bill.orderId, tenantId);
 
   if (bill.order.tableId) {
     const active = await tx.order.count({

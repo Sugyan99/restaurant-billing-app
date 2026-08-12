@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
 
@@ -18,14 +18,15 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
     const { inventoryItemId, newStock, note } = parsed.data;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
       const item = await tx.inventoryItem.findUnique({ where: { id: inventoryItemId } });
-      if (!item) throw new Error("Item not found");
+      if (!item) return { notFound: true } as const;
       const diff = newStock - item.currentStock;
       await tx.inventoryItem.update({ where: { id: inventoryItemId }, data: { currentStock: newStock } });
       await tx.stockTransaction.create({
         data: {
           id: `stx_${Date.now()}`,
+          tenantId: session.tenantId,
           inventoryItemId,
           type: "ADJUST",
           quantity: diff,
@@ -34,8 +35,10 @@ export async function POST(req: NextRequest) {
           createdById: session.userId,
         },
       });
-      return { ...item, currentStock: newStock };
+      return { item: { ...item, currentStock: newStock } } as const;
     });
-    return NextResponse.json({ item: result });
+
+    if ("notFound" in result) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    return NextResponse.json({ item: result.item });
   });
 }
