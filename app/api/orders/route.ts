@@ -173,7 +173,9 @@ export async function POST(req: NextRequest) {
       );
     }
     if ("missingItems" in result) return NextResponse.json({ error: "One or more menu items not found" }, { status: 400 });
-    if ("unavailable" in result) return NextResponse.json({ error: `Unavailable items: ${result.unavailable.join(", ")}` }, { status: 400 });
+    if ("unavailable" in result && Array.isArray(result.unavailable)) {
+      return NextResponse.json({ error: `Unavailable items: ${result.unavailable.join(", ")}` }, { status: 400 });
+    }
     if ("noTable" in result) return NextResponse.json({ error: "Table not found" }, { status: 404 });
 
     return NextResponse.json({ order: (result as { order: unknown }).order }, { status: 201 });
