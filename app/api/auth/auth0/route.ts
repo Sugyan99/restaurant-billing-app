@@ -2,25 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { signToken } from "@/lib/auth";
 
-// Auth0 callback handler - exchanges Auth0 session for our app JWT
-// Auth0 integration sets: AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET
+// Auth0 callback handler - exchanges a verified Auth0 identity for our app JWT.
 export async function POST(req: NextRequest) {
   try {
     const { email, name, sub } = await req.json();
-    if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
+    if (!email || !sub) {
+      return NextResponse.json({ error: "Verified email and subject required" }, { status: 400 });
+    }
 
-    // Find existing user by email
     let user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      // First Auth0 login - check if any users exist
       const count = await prisma.user.count();
-      // Auto-create as OWNER if first user, else CASHIER (owner can upgrade role)
       user = await prisma.user.create({
         data: {
           name: name ?? email.split("@")[0],
           email,
-          passwordHash: `auth0:${sub}`, // Auth0 users have no local password
+          passwordHash: `auth0:${sub}`,
           role: count === 0 ? "OWNER" : "CASHIER",
           isActive: true,
         },
@@ -31,29 +29,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account is deactivated" }, { status: 403 });
     }
 
-    // Resolve tenant membership
-    let membership = await prisma.tenantMembership.findFirst({
+    const membership = await prisma.tenantMembership.findFirst({
       where: { userId: user.id, status: "active" },
       select: { tenantId: true },
       orderBy: { createdAt: "asc" },
     });
 
-    // Auto-assign to default tenant if no membership exists
     if (!membership) {
-      const DEFAULT_TENANT_ID = "9d67c11e-fc4b-46c9-bd2e-4ec775bb8868";
-      await prisma.tenantMembership.create({
-        data: {
-          tenantId: DEFAULT_TENANT_ID,
-          userId: user.id,
-          role: user.role.toLowerCase(),
-          status: "active",
-          joinedAt: new Date(),
-        },
-      });
-      membership = { tenantId: DEFAULT_TENANT_ID };
+      return NextResponse.json(
+        { error: "Account is not associated with a tenant. Contact your administrator." },
+        { status: 403 }
+      );
     }
 
-    const token = signToken({ userId: user.id, role: user.role, tenantId: membership.tenantId });
+    const token = signToken({
+      userId: user.id,
+      role: user.role,
+      tenantId: membership.tenantId,
+    });
+
     const response = NextResponse.json({
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
