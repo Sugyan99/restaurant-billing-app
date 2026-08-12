@@ -1,265 +1,81 @@
-# 🚀 Production Deployment Guide
-## Oracle Cloud Free Tier VM — 24/7 Hosting
+# Production Deployment — Vercel
 
----
+This project is a Next.js application deployed through Vercel with PostgreSQL/Prisma. The old Oracle VM, PM2, and local PostgreSQL procedure is intentionally removed because it does not describe the production architecture.
 
-## PART 1: Setup Oracle VM (one-time)
+## 1. Vercel project
 
-### Step 1: SSH into your VM
-```bash
-# From your Windows terminal or Termux:
-ssh ubuntu@YOUR_VM_IP
-# Or via Tailscale (which you already have set up):
-ssh ubuntu@your-tailscale-hostname
-```
+Connect `Sugyan99/restaurant-billing-app` to Vercel and deploy the `main` branch.
 
-### Step 2: Install required software on VM
-```bash
-# Update packages
-sudo apt update && sudo apt upgrade -y
+Recommended project settings:
 
-# Install Node.js 20 LTS
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
+- Framework: Next.js
+- Node.js: 24.x
+- Install command: `npm ci`
+- Build command: `npm run build`
+- Region: `sin1`
 
-# Install PostgreSQL
-sudo apt install -y postgresql postgresql-contrib
+## 2. Required environment variables
 
-# Install PM2 (keeps app running 24/7)
-sudo npm install -g pm2
+Set these in the Vercel Production environment. Add the same variables to Preview only when preview databases are intentionally configured.
 
-# Install Nginx (reverse proxy + SSL)
-sudo apt install -y nginx
+### Database
 
-# Verify everything installed:
-node -v    # should say v20.x.x
-npm -v
-psql --version
-pm2 --version
-nginx -v
-```
+- `DATABASE_URL` or `POSTGRES_PRISMA_URL`: privileged Prisma connection used only by administrative/authentication code.
+- `APP_DATABASE_URL`: **required** dedicated non-superuser `prisma_app` connection with `NOBYPASSRLS` so PostgreSQL Row Level Security remains enforced for tenant-scoped application queries.
 
----
+Do not point `APP_DATABASE_URL` at the privileged/admin connection.
 
-## PART 2: Setup PostgreSQL Database
+### Authentication
 
-```bash
-# Switch to postgres user
-sudo -i -u postgres
+- `JWT_SECRET`: long random production secret.
+- Auth0 variables when Auth0 login is enabled: `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`.
+- Supabase variables when Google/Supabase login is enabled: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 
-# Create database and user for your client
-psql
-```
+### Optional integrations
 
-Inside psql, run these commands:
-```sql
--- Create database (one per restaurant client)
-CREATE DATABASE restaurant_odisha;
+- `GROQ_API_KEY` when AI features are enabled.
 
--- Create a secure user
-CREATE USER restobill_user WITH PASSWORD 'choose-a-strong-password-here';
+Never commit real secrets to GitHub. Never use `NEXT_PUBLIC_` for server-only secrets.
 
--- Give permissions
-GRANT ALL PRIVILEGES ON DATABASE restaurant_odisha TO restobill_user;
+## 3. Database deployment
 
--- Exit psql
-\q
-```
+Prisma Client is generated automatically by `npm run build`.
+
+Run schema migrations from a controlled migration environment using the direct/non-pooling database connection. Do not run destructive `prisma db push` automatically during every Vercel deployment.
+
+Before production deployment:
 
 ```bash
-# Exit postgres user
-exit
-```
-
----
-
-## PART 3: Clone and Configure the App
-
-```bash
-# Go to your home directory
-cd ~
-
-# Clone your repo (use your GitHub token if private)
-git clone https://YOUR_GITHUB_TOKEN@github.com/Sugyan99/restaurant-billing-app.git
-cd restaurant-billing-app
-
-# Install dependencies
-npm install
-
-# Create your .env file
-nano .env
-```
-
-Paste this into the .env file (edit the values):
-```
-DATABASE_URL="postgresql://restobill_user:your-password@localhost:5432/restaurant_odisha"
-JWT_SECRET="paste-a-very-long-random-string-here-minimum-40-characters"
-GROQ_API_KEY="your-groq-api-key-from-console.groq.com"
-NODE_ENV="production"
-NEXTAUTH_URL="https://yourdomain.com"
-```
-
-Save with Ctrl+X, then Y, then Enter.
-
-```bash
-# Setup database tables
+npx prisma validate
 npx prisma generate
-npx prisma db push
-
-# Build the Next.js app for production
+npx prisma migrate deploy
+npm run typecheck
+npm run lint
 npm run build
 ```
 
----
+## 4. Multi-tenant security requirements
 
-## PART 4: Start App with PM2
+Every authenticated session must contain a valid `tenantId` in its JWT.
 
-```bash
-# Start the app (PM2 keeps it running even if VM restarts)
-pm2 start npm --name "restobill" -- start
+Tenant-scoped database operations must use `withTenant(tenantId, userId, callback)` and therefore run through the dedicated `prisma_app` role and RLS policies.
 
-# Save PM2 config so it restarts on VM reboot
-pm2 save
-pm2 startup
+There is no production fallback from `APP_DATABASE_URL` to an admin database URL. A missing `APP_DATABASE_URL` intentionally causes the application to fail closed.
 
-# Copy-paste the command it gives you (starts with sudo)
-# It looks like: sudo env PATH=... pm2 startup...
+Do not reintroduce hard-coded tenant UUIDs as Prisma field defaults or authentication fallbacks.
 
-# Check app is running:
-pm2 status
-pm2 logs restobill   # View live logs
-```
+## 5. Deployment verification
 
-App is now running on http://localhost:3000 inside the VM.
+After Vercel reports a successful deployment:
 
----
+1. Open the production URL.
+2. Register/login with a valid owner account.
+3. Verify the owner has exactly one tenant membership.
+4. Create a second test tenant/user in a staging database.
+5. Verify tenant A cannot read or mutate tenant B data.
+6. Test login, orders, billing, inventory, and settings APIs.
+7. Check Vercel runtime logs for 4xx/5xx errors.
 
-## PART 5: Setup Nginx + Free SSL
+## 6. Rollback
 
-```bash
-# Create Nginx config for your domain
-sudo nano /etc/nginx/sites-available/restobill
-```
-
-Paste this (replace yourdomain.com with your actual domain):
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com www.yourdomain.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-```bash
-# Enable the config
-sudo ln -s /etc/nginx/sites-available/restobill /etc/nginx/sites-enabled/
-sudo nginx -t          # Test config (should say OK)
-sudo systemctl restart nginx
-
-# Get free SSL from Let's Encrypt
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d yourdomain.com
-
-# Auto-renew SSL (runs twice a day, renews when near expiry)
-sudo crontab -e
-# Add this line:
-0 12 * * * /usr/bin/certbot renew --quiet
-```
-
-Your app is now live at **https://yourdomain.com** 🎉
-
----
-
-## PART 6: First Login Setup
-
-Open your app URL in browser, then register the first Owner account:
-
-```bash
-# On your local machine, run this command to create the first Owner:
-curl -X POST https://yourdomain.com/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Restaurant Owner","email":"owner@email.com","password":"yourpassword"}'
-```
-
-After that, login normally through the web interface.
-
----
-
-## PART 7: Daily Operations (Future Updates)
-
-When you add new features and want to deploy:
-```bash
-# On your VM:
-cd ~/restaurant-billing-app
-git pull                    # Get latest code from GitHub
-npm install                 # Install any new packages
-npm run build               # Rebuild
-pm2 restart restobill       # Restart app
-```
-
----
-
-## PART 8: Adding a Second Client (New Restaurant)
-
-For each new client, do this on the VM:
-```bash
-# 1. Create new database for them
-sudo -i -u postgres
-psql
-CREATE DATABASE restaurant_CLIENT2_NAME;
-GRANT ALL PRIVILEGES ON DATABASE restaurant_CLIENT2_NAME TO restobill_user;
-\q
-exit
-
-# 2. Copy app to new folder
-cp -r ~/restaurant-billing-app ~/restaurant-billing-CLIENT2
-
-# 3. Create new .env with different database
-cd ~/restaurant-billing-CLIENT2
-nano .env
-# Change DATABASE_URL to point to restaurant_CLIENT2_NAME
-
-# 4. Push schema to new DB
-npx prisma db push
-
-# 5. Start on different port
-PORT=3001 pm2 start npm --name "restobill-client2" -- start
-
-# 6. Add new Nginx block for their domain
-# (Same as Part 5, different server_name and proxy port 3001)
-```
-
----
-
-## Uptime Monitoring (Free)
-
-1. Go to https://uptimerobot.com
-2. Create free account
-3. Add monitor: HTTP(S) → your domain URL
-4. Add your WhatsApp/email for alerts
-5. You'll get pinged instantly if the site goes down
-
----
-
-## Backup (Important!)
-
-```bash
-# Add this to crontab for daily 2 AM DB backup:
-crontab -e
-
-# Add these lines:
-0 2 * * * pg_dump -U restobill_user restaurant_odisha > ~/backups/db_$(date +\%Y\%m\%d).sql
-# Keep only last 7 days:
-0 3 * * * find ~/backups -name "*.sql" -mtime +7 -delete
-```
-
-Create the backups folder first: `mkdir ~/backups`
+Use the Vercel deployment history to promote the last known-good deployment if a production release fails. Database migrations must be backward-compatible before application rollout.
