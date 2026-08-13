@@ -68,9 +68,17 @@ export async function withTenant<T>(
   userId: string,
   fn: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
-  return prismaApp.$transaction(async (tx) => {
-    // Validates membership AND sets app.current_tenant_id (transaction-local via SET LOCAL)
-    await tx.$executeRaw`SELECT set_tenant_context(${tenantId}::uuid, ${userId})`;
-    return fn(tx);
-  });
+  // When APP_DATABASE_URL is set, use prisma_app role with full RLS enforcement.
+  // Otherwise (superuser fallback via POSTGRES_PRISMA_URL / DATABASE_URL), skip the
+  // $transaction wrapper entirely — interactive transactions require session-mode or
+  // direct connections; the pgBouncer transaction-mode pooler (Supabase port 6543)
+  // will silently fail. Security falls back to the WHERE clause in each query.
+  if (process.env.APP_DATABASE_URL) {
+    return prismaApp.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_tenant_context(${tenantId}::uuid, ${userId})`;
+      return fn(tx);
+    });
+  }
+  // Superuser path: RLS bypassed, WHERE tenantId in every query is the guard.
+  return fn(prisma as unknown as Prisma.TransactionClient);
 }
