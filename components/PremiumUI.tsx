@@ -5,122 +5,32 @@ import { usePathname, useRouter } from "next/navigation";
 import { Command, Moon, Search, Sun, X, Zap } from "lucide-react";
 
 const COMMANDS = [
-  { label: "Dashboard", href: "/dashboard/home", keywords: "home overview" },
-  { label: "Tables & POS", href: "/dashboard/tables", keywords: "tables billing pos" },
-  { label: "Kitchen / KOT", href: "/dashboard/orders", keywords: "orders kitchen kot" },
-  { label: "Bills & Payments", href: "/dashboard/bills", keywords: "bills payments" },
-  { label: "Menu & Import", href: "/dashboard/menu", keywords: "menu food import" },
-  { label: "Inventory & Stock", href: "/dashboard/inventory", keywords: "inventory stock" },
-  { label: "Customers & Loyalty", href: "/dashboard/customers", keywords: "customers loyalty" },
-  { label: "Finance", href: "/dashboard/finance", keywords: "finance money" },
-  { label: "Sales Reports", href: "/dashboard/reports", keywords: "reports sales analytics" },
-  { label: "GST Report", href: "/dashboard/gst-report", keywords: "gst tax report" },
-  { label: "Staff", href: "/dashboard/users", keywords: "staff users employees" },
-  { label: "Settings & QR", href: "/dashboard/settings", keywords: "settings qr configuration" },
-];
+  ["Dashboard", "/dashboard/home", "home overview"], ["Tables & POS", "/dashboard/tables", "tables billing pos"],
+  ["Kitchen / KOT", "/dashboard/orders", "orders kitchen kot"], ["Bills & Payments", "/dashboard/bills", "bills payments"],
+  ["Menu & Import", "/dashboard/menu", "menu food import"], ["Inventory & Stock", "/dashboard/inventory", "inventory stock"],
+  ["Customers & Loyalty", "/dashboard/customers", "customers loyalty"], ["Finance", "/dashboard/finance", "finance money"],
+  ["Sales Reports", "/dashboard/reports", "reports sales analytics"], ["GST Report", "/dashboard/gst-report", "gst tax report"],
+  ["Staff", "/dashboard/users", "staff users employees"], ["Settings & QR", "/dashboard/settings", "settings qr configuration"],
+] as const;
 
-export function ThemeToggle() {
-  const [dark, setDark] = useState(false);
+const UI_STYLES = `
+:root{--ui-bg:#fff;--ui-panel:#fff;--ui-text:#0f1623;--ui-muted:#64748b;--ui-border:#e2e8f0;--ui-soft:#f8fafc;--ui-shadow:0 18px 60px rgba(15,23,42,.16)}
+html[data-theme="dark"]{--ui-bg:#090f1a;--ui-panel:#111a29;--ui-text:#f8fafc;--ui-muted:#94a3b8;--ui-border:#263449;--ui-soft:#172235;--ui-shadow:0 22px 70px rgba(0,0,0,.45)}
+html[data-theme="dark"] body{background:#090f1a;color:#f8fafc}html[data-theme="dark"] .topbar,html[data-theme="dark"] .card,html[data-theme="dark"] .stat-card,html[data-theme="dark"] .modal,html[data-theme="dark"] .bill-panel,html[data-theme="dark"] .menu-item-card{background:var(--ui-panel);color:var(--ui-text);border-color:var(--ui-border)}
+html[data-theme="dark"] .card-title,html[data-theme="dark"] .stat-value,html[data-theme="dark"] .topbar-title,html[data-theme="dark"] .form-label,html[data-theme="dark"] .item-name{color:var(--ui-text)}html[data-theme="dark"] .form-input,html[data-theme="dark"] .form-select,html[data-theme="dark"] .cat-tab,html[data-theme="dark"] .qty-btn{background:#0d1624;color:var(--ui-text);border-color:var(--ui-border)}html[data-theme="dark"] table th{background:#172235;color:#e2e8f0}html[data-theme="dark"] table tbody tr:hover{background:#172235!important}
+.brand-mark{width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,#f97316,#c2410c);display:grid;place-items:center;color:#fff;font-weight:900;box-shadow:0 8px 24px rgba(249,115,22,.28)}.sidebar-logo{display:flex;align-items:center;gap:10px}.sidebar-logo h1{margin:0}
+.nav-group-items{overflow:hidden;transition:max-height .28s cubic-bezier(.2,.8,.2,1)}.nav-section-toggle{width:100%;background:transparent;border:0;color:#64748b;display:flex;justify-content:space-between;align-items:center;padding:9px 16px;font-size:9px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;cursor:pointer}.nav-section-toggle.has-active{color:#94a3b8}.chevron{transition:transform .25s ease}.chevron.open{transform:rotate(180deg)}.nav-item{transition:background .18s ease,color .18s ease,transform .18s ease}.nav-item:hover{transform:translateX(2px)}.nav-icon{width:20px;text-align:center;flex:0 0 20px}.nav-label{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-footer{border-top:1px solid #1e2d42;padding:12px}.user-mini{display:flex;align-items:center;gap:9px;padding:4px 4px 10px;min-width:0}.user-mini .avatar{width:30px;height:30px;border-radius:9px;background:#24324a;color:#e2e8f0;display:grid;place-items:center;font-weight:800;font-size:11px;flex:0 0 30px}.user-mini strong,.user-mini small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.user-mini strong{color:#e2e8f0;font-size:11px}.user-mini small{color:#64748b;font-size:9px;margin-top:2px}.logout-button{width:100%;border:0;background:#172235;color:#94a3b8;border-radius:8px;padding:8px;cursor:pointer;transition:.18s}.logout-button:hover{background:#991b1b;color:#fff}
+.topbar-left,.topbar-actions{display:flex;align-items:center;gap:9px;min-width:0}.breadcrumb-muted,.breadcrumb-sep{color:#94a3b8;font-size:11px}.command-trigger{height:32px;min-width:170px;border:1px solid var(--ui-border);background:var(--ui-soft);color:var(--ui-muted);border-radius:9px;padding:0 9px;display:flex;align-items:center;gap:7px;cursor:pointer;font-size:11px}.command-trigger span:nth-child(2){flex:1;text-align:left}.ui-icon-button{width:32px;height:32px;border:1px solid var(--ui-border);background:var(--ui-panel);color:var(--ui-text);border-radius:9px;display:grid;place-items:center;cursor:pointer;transition:transform .16s,background .16s,box-shadow .16s;position:relative}.ui-icon-button:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(15,23,42,.10);background:var(--ui-soft)}.ui-icon-button:active{transform:scale(.94)}.ui-icon-button-small{width:26px;height:26px;border:0;box-shadow:none}kbd{font-family:inherit;font-size:9px;line-height:1;padding:4px 6px;border:1px solid var(--ui-border);border-bottom-width:2px;border-radius:5px;background:var(--ui-panel);color:var(--ui-muted)}
+.role-pill{border:1px solid rgba(232,114,28,.25);background:rgba(232,114,28,.10);color:#d65f10;border-radius:999px;padding:5px 9px;font-size:9px;font-weight:800}.notification-wrap{position:relative}.notification-dot{position:absolute;right:-4px;top:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#dc2626;color:#fff;display:grid;place-items:center;font-size:8px;font-weight:800;border:2px solid var(--ui-panel)}.notification-popover{position:absolute;right:0;top:40px;width:340px;max-width:calc(100vw - 28px);background:var(--ui-panel);border:1px solid var(--ui-border);border-radius:14px;box-shadow:var(--ui-shadow);overflow:hidden;z-index:100;animation:ui-pop .18s ease-out}.popover-head{display:flex;justify-content:space-between;align-items:center;padding:13px 15px;border-bottom:1px solid var(--ui-border);color:var(--ui-text);font-size:12px}.popover-head button{border:0;background:transparent;color:#e8721c;font-size:10px;font-weight:700;cursor:pointer}.notification-list{max-height:340px;overflow:auto}.notification-row{display:flex;gap:9px;padding:11px 14px;border-bottom:1px solid var(--ui-border);color:var(--ui-text);font-size:11px}.notification-row.unread{background:rgba(232,114,28,.06)}.notification-row strong{display:block;font-size:11px}.notification-row p{margin:3px 0;color:var(--ui-muted);line-height:1.4;font-size:10px}.notification-row small{color:#94a3b8;font-size:9px}.empty-state{padding:28px;text-align:center;color:var(--ui-muted);font-size:11px}
+.page-transition{animation:ui-page-in .28s cubic-bezier(.2,.8,.2,1) both}@keyframes ui-page-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}@keyframes ui-pop{from{opacity:0;transform:translateY(-5px) scale(.98)}to{opacity:1;transform:none}}
+.command-overlay{position:fixed;inset:0;background:rgba(2,6,23,.52);backdrop-filter:blur(7px);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:12vh 18px 24px;animation:ui-fade .14s ease-out}.command-dialog{width:min(640px,100%);background:var(--ui-panel);border:1px solid var(--ui-border);border-radius:17px;box-shadow:var(--ui-shadow);overflow:hidden;animation:ui-command .18s cubic-bezier(.2,.8,.2,1)}.command-search{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--ui-border);color:var(--ui-muted)}.command-search input{flex:1;border:0;outline:0;background:transparent;color:var(--ui-text);font:inherit;font-size:14px}.command-list{max-height:min(55vh,430px);overflow:auto;padding:7px}.command-item{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:var(--ui-text);text-align:left;border-radius:10px;padding:10px;cursor:pointer;transition:.14s}.command-item:hover,.command-item.selected{background:rgba(232,114,28,.10)}.command-item-icon{width:28px;height:28px;border-radius:8px;background:var(--ui-soft);display:grid;place-items:center;color:#e8721c}.command-item span:nth-child(2){flex:1;min-width:0}.command-item strong,.command-item small{display:block}.command-item strong{font-size:12px}.command-item small{color:var(--ui-muted);font-size:9px;margin-top:2px}.command-empty{padding:36px;text-align:center;color:var(--ui-muted);font-size:12px}.command-footer{display:flex;gap:14px;padding:9px 13px;border-top:1px solid var(--ui-border);color:var(--ui-muted);font-size:9px}.command-footer span{display:flex;align-items:center;gap:4px}
+.ripple-effect{position:absolute;border-radius:999px;background:rgba(255,255,255,.28);transform:scale(0);pointer-events:none;animation:ui-ripple .55s ease-out forwards}@keyframes ui-ripple{to{transform:scale(1);opacity:0}}.floating-ui-button{position:fixed;right:22px;bottom:22px;width:46px;height:46px;border-radius:15px;border:1px solid rgba(232,114,28,.35);background:#e8721c;color:#fff;display:grid;place-items:center;box-shadow:0 12px 30px rgba(232,114,28,.28);z-index:45;cursor:pointer;transition:.2s}.floating-ui-button:hover{transform:translateY(-3px) scale(1.03);box-shadow:0 16px 35px rgba(232,114,28,.35)}.mobile-menu-button{display:none}@keyframes ui-fade{from{opacity:0}to{opacity:1}}@keyframes ui-command{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
+@media(max-width:900px){.command-trigger{min-width:32px;width:32px;padding:0;justify-content:center}.command-trigger span:nth-child(2),.command-trigger kbd,.topbar-date,.breadcrumb-muted,.breadcrumb-sep{display:none}}@media(max-width:768px){.mobile-menu-button{display:grid;width:30px;height:30px;border:1px solid var(--ui-border);background:var(--ui-panel);color:var(--ui-text);border-radius:8px;place-items:center}.topbar-actions{gap:6px}.role-pill{display:none}.sidebar-logo{justify-content:center}.sidebar-footer{padding:8px 6px}.user-mini{justify-content:center}.user-mini>div:not(.avatar),.logout-button span{display:none}.logout-button{padding:9px 0}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+`;
 
-  useEffect(() => {
-    const saved = document.documentElement.dataset.theme;
-    setDark(saved === "dark");
-  }, []);
+export function ThemeToggle(){const[dark,setDark]=useState(false);useEffect(()=>{setDark(document.documentElement.dataset.theme==="dark")},[]);function toggle(){const next=!dark;document.documentElement.dataset.theme=next?"dark":"light";document.cookie=`restobill-theme=${next?"dark":"light"};path=/;max-age=31536000;samesite=lax`;setDark(next)}return <button className="ui-icon-button" onClick={toggle} aria-label={dark?"Switch to light mode":"Switch to dark mode"} title={dark?"Light mode":"Dark mode"}>{dark?<Sun size={16}/>:<Moon size={16}/>}</button>}
 
-  function toggle() {
-    const next = !dark;
-    document.documentElement.dataset.theme = next ? "dark" : "light";
-    document.cookie = `restobill-theme=${next ? "dark" : "light"};path=/;max-age=31536000;samesite=lax`;
-    setDark(next);
-  }
+export function CommandPalette({open,onClose}:{open:boolean;onClose:()=>void}){const router=useRouter();const[query,setQuery]=useState("");const[selected,setSelected]=useState(0);const results=useMemo(()=>{const q=query.trim().toLowerCase();return q?COMMANDS.filter(c=>`${c[0]} ${c[2]}`.toLowerCase().includes(q)):COMMANDS},[query]);useEffect(()=>{if(open){setQuery("");setSelected(0)}},[open]);useEffect(()=>{if(!open)return;const handler=(e:KeyboardEvent)=>{if(e.key==="Escape")onClose();if(e.key==="ArrowDown"){e.preventDefault();setSelected(s=>Math.min(s+1,Math.max(0,results.length-1)))}if(e.key==="ArrowUp"){e.preventDefault();setSelected(s=>Math.max(0,s-1))}if(e.key==="Enter"&&results[selected]){e.preventDefault();router.push(results[selected][1]);onClose()}};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler)},[open,onClose,results,router,selected]);if(!open)return null;return <div className="command-overlay" onMouseDown={onClose}><div className="command-dialog" role="dialog" aria-modal="true" aria-label="Command palette" onMouseDown={e=>e.stopPropagation()}><div className="command-search"><Search size={18}/><input autoFocus value={query} onChange={e=>{setQuery(e.target.value);setSelected(0)}} placeholder="Search pages and actions…" aria-label="Search commands"/><kbd>ESC</kbd><button className="ui-icon-button ui-icon-button-small" onClick={onClose} aria-label="Close"><X size={15}/></button></div><div className="command-list">{results.length===0?<div className="command-empty">No matching pages</div>:results.map((item,index)=><button key={item[1]} className={`command-item ${index===selected?"selected":""}`} onMouseEnter={()=>setSelected(index)} onClick={()=>{router.push(item[1]);onClose()}}><span className="command-item-icon"><Zap size={15}/></span><span><strong>{item[0]}</strong><small>{item[2]}</small></span>{index===selected&&<kbd>↵</kbd>}</button>)}</div><div className="command-footer"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>ESC</kbd> close</span></div></div></div>}
 
-  return (
-    <button className="ui-icon-button" onClick={toggle} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Light mode" : "Dark mode"}>
-      {dark ? <Sun size={16} /> : <Moon size={16} />}
-    </button>
-  );
-}
-
-export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(0);
-
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return COMMANDS;
-    return COMMANDS.filter(c => `${c.label} ${c.keywords}`.toLowerCase().includes(q));
-  }, [query]);
-
-  useEffect(() => {
-    if (!open) return;
-    setQuery("");
-    setSelected(0);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-      if (event.key === "ArrowDown") { event.preventDefault(); setSelected(s => Math.min(s + 1, Math.max(0, results.length - 1))); }
-      if (event.key === "ArrowUp") { event.preventDefault(); setSelected(s => Math.max(0, s - 1)); }
-      if (event.key === "Enter" && results[selected]) {
-        event.preventDefault(); router.push(results[selected].href); onClose();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose, results, router, selected]);
-
-  if (!open) return null;
-
-  return (
-    <div className="command-overlay" role="presentation" onMouseDown={onClose}>
-      <div className="command-dialog" role="dialog" aria-modal="true" aria-label="Command palette" onMouseDown={e => e.stopPropagation()}>
-        <div className="command-search">
-          <Search size={18} />
-          <input autoFocus value={query} onChange={e => { setQuery(e.target.value); setSelected(0); }} placeholder="Search pages and actions…" aria-label="Search commands" />
-          <kbd>ESC</kbd>
-          <button className="ui-icon-button ui-icon-button-small" onClick={onClose} aria-label="Close command palette"><X size={15} /></button>
-        </div>
-        <div className="command-list">
-          {results.length === 0 ? <div className="command-empty">No matching pages</div> : results.map((item, index) => (
-            <button key={item.href} className={`command-item ${index === selected ? "selected" : ""}`} onMouseEnter={() => setSelected(index)} onClick={() => { router.push(item.href); onClose(); }}>
-              <span className="command-item-icon"><Zap size={15} /></span>
-              <span><strong>{item.label}</strong><small>{item.keywords}</small></span>
-              {index === selected && <kbd>↵</kbd>}
-            </button>
-          ))}
-        </div>
-        <div className="command-footer"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>ESC</kbd> close</span></div>
-      </div>
-    </div>
-  );
-}
-
-export function PremiumUI() {
-  const pathname = usePathname();
-  const [palette, setPalette] = useState(false);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (!root.dataset.theme) root.dataset.theme = "light";
-    const handler = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setPalette(true);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      document.documentElement.style.setProperty("--route-key", pathname);
-    });
-    return () => cancelAnimationFrame(id);
-  }, [pathname]);
-
-  return <CommandPalette open={palette} onClose={() => setPalette(false)} />;
-}
+export function PremiumUI(){const pathname=usePathname();const[palette,setPalette]=useState(false);useEffect(()=>{const root=document.documentElement;if(!root.dataset.theme)root.dataset.theme="light";const handler=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();setPalette(true)}};const ripple=(e:MouseEvent)=>{const target=e.target as HTMLElement|null;const button=target?.closest("button:not([disabled])") as HTMLElement|null;if(!button||button.classList.contains("ui-icon-button-small"))return;const rect=button.getBoundingClientRect();const size=Math.max(rect.width,rect.height)*1.8;const el=document.createElement("span");el.className="ripple-effect";el.style.width=`${size}px`;el.style.height=`${size}px`;el.style.left=`${e.clientX-rect.left-size/2}px`;el.style.top=`${e.clientY-rect.top-size/2}px`;button.style.position=button.style.position||"relative";button.style.overflow="hidden";button.appendChild(el);window.setTimeout(()=>el.remove(),600)};window.addEventListener("keydown",handler);document.addEventListener("click",ripple);return()=>{window.removeEventListener("keydown",handler);document.removeEventListener("click",ripple)}},[]);useEffect(()=>{document.documentElement.style.setProperty("--route-key",pathname)},[pathname]);return <><style dangerouslySetInnerHTML={{__html:UI_STYLES}}/><CommandPalette open={palette} onClose={()=>setPalette(false)}/><button className="floating-ui-button" onClick={()=>setPalette(true)} aria-label="Open command palette" title="Command palette"><Command size={19}/></button></>}
