@@ -1,5 +1,15 @@
-- name: 'notify vercel'
-  uses: 'vercel/repository-dispatch/actions/status@v1'
-  with:
-    name: Vercel - restaurant-billing-app: ADMIN
-    
+name: Vercel Deployment Approval
+on:
+  deployment_protection_rule:
+
+permissions:
+  deployments: write
+
+jobs:
+  approve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Approve Vercel Deployment
+        uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          name: Vercel - restaurant-billing-app: ADMIN
