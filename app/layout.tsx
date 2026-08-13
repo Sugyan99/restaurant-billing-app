@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./premium-ui.css";
+import "./mobile-responsive.css";
 
 export const metadata: Metadata = {
   title: "RestoBill — Restaurant Billing",
