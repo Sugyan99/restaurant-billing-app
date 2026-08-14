@@ -53,13 +53,12 @@ export async function POST(req: NextRequest) {
 
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
-    data: {
-      name, email, passwordHash, role, phone,
-      tenantMemberships: {
-        create: { tenantId: session.tenantId, role, status: "active" },
-      },
-    },
+    data: { name, email, passwordHash, role, phone },
     select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, salary: true, createdAt: true },
+  });
+  // Add to tenant
+  await prisma.tenantMembership.create({
+    data: { tenantId: session.tenantId, userId: user.id, role, status: "active" },
   });
 
   return NextResponse.json({ user }, { status: 201 });
