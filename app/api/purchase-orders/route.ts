@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
     const session = requireAuth(req, ["OWNER", "MANAGER"]);
     if (isAuthError(session)) return session;
     const orders = await prisma.purchaseOrder.findMany({
+      where: { tenantId: session.tenantId },
       include: { items: true },
       orderBy: { createdAt: "desc" },
       take: 50,
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
     const po = await prisma.purchaseOrder.create({
       data: {
         id: `po_${Date.now()}`,
+        tenantId: session.tenantId,
         supplierName,
         totalAmount: parseFloat(totalAmount.toFixed(2)),
         notes: notes ?? null,

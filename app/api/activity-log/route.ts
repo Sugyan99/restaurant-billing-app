@@ -17,14 +17,15 @@ export async function GET(req: NextRequest) {
       : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const until = date ? new Date(`${date}T23:59:59.999Z`) : new Date();
 
+    const tid = session.tenantId;
     const [auditRows, billingRows, users] = await Promise.all([
       prisma.auditLog.findMany({
-        where: { createdAt: { gte: since, lte: until } },
+        where: { tenantId: tid, createdAt: { gte: since, lte: until } },
         orderBy: { createdAt: "desc" },
         take: 200,
       }),
       prisma.billingAuditLog.findMany({
-        where: { createdAt: { gte: since, lte: until } },
+        where: { tenantId: tid, createdAt: { gte: since, lte: until } },
         orderBy: { createdAt: "desc" },
         take: 200,
       }),

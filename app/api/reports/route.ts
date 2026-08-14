@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   }
 
   const bills = await prisma.bill.findMany({
-    where: { paymentStatus: "PAID", createdAt: { gte: startDate, lte: endDate } },
+    where: { tenantId: session.tenantId, paymentStatus: "PAID", createdAt: { gte: startDate, lte: endDate } },
     include: {
       order: { include: { items: { include: { menuItem: { include: { category: true } } } } } },
     },

@@ -14,10 +14,11 @@ export async function GET(req: NextRequest) {
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 0, 23, 59, 59);
 
+    const tid = session.tenantId;
     const [inventory, expenses] = await Promise.all([
-      prisma.inventoryItem.findMany({ orderBy: { name: "asc" } }),
+      prisma.inventoryItem.findMany({ where: { tenantId: tid }, orderBy: { name: "asc" } }),
       prisma.expense.findMany({
-        where: { category: "INGREDIENTS", date: { gte: start, lte: end } },
+        where: { tenantId: tid, category: "INGREDIENTS", date: { gte: start, lte: end } },
         orderBy: { date: "desc" },
       }),
     ]);

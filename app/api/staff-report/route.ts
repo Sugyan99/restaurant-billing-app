@@ -12,14 +12,20 @@ export async function GET(req: NextRequest) {
   const days  = parseInt(searchParams.get("days") ?? "7");
   const since = new Date(Date.now() - days * 86400000);
 
+  const tid = session.tenantId;
+  const memberIds = (await prisma.tenantMembership.findMany({
+    where: { tenantId: tid },
+    select: { userId: true },
+  })).map(m => m.userId);
+
   const users = await prisma.user.findMany({
-    where: { isActive: true },
+    where: { id: { in: memberIds }, isActive: true },
     select: { id: true, name: true, role: true, email: true, salary: true },
   });
 
   const stats = await Promise.all(users.map(async u => {
     const orders = await prisma.order.findMany({
-      where: { createdById: u.id, createdAt: { gte: since } },
+      where: { tenantId: tid, createdById: u.id, createdAt: { gte: since } },
       include: { bill: { select: { total: true, paymentStatus: true } } },
     });
     const paid      = orders.filter(o => o.bill?.paymentStatus === "PAID");

@@ -15,13 +15,14 @@ export async function GET(req: NextRequest) {
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 0, 23, 59, 59);
 
+  const tid = session.tenantId;
   const bills = await prisma.bill.findMany({
-    where: { paymentStatus: "PAID", createdAt: { gte: start, lte: end } },
+    where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: start, lte: end } },
     include: { order: { include: { items: { include: { menuItem: true } } } } },
     orderBy: { createdAt: "asc" },
   });
 
-  const settings = await prisma.settings.findFirst();
+  const settings = await prisma.settings.findFirst({ where: { tenantId: tid } });
 
   const totalTaxable = bills.reduce((s, b) => s + (b.subtotal - b.discount), 0);
   const totalCgst = bills.reduce((s, b) => s + b.cgst, 0);

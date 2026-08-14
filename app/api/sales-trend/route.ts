@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
 
   const now = new Date();
 
+  const tid = session.tenantId;
   // Last 7 days daily revenue
   const days: { date: string; revenue: number; orders: number }[] = [];
   for (let i = 6; i >= 0; i--) {
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
     d.setDate(now.getDate() - i);
     d.setHours(0, 0, 0, 0);
     const next = new Date(d); next.setDate(d.getDate() + 1);
-    const bills = await prisma.bill.findMany({ where: { paymentStatus: "PAID", createdAt: { gte: d, lt: next } } });
+    const bills = await prisma.bill.findMany({ where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: d, lt: next } } });
     days.push({
       date: d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric" }),
       revenue: parseFloat(bills.reduce((s, b) => s + b.total, 0).toFixed(2)),
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   // Today hourly breakdown
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-  const todayBills = await prisma.bill.findMany({ where: { paymentStatus: "PAID", createdAt: { gte: todayStart } } });
+  const todayBills = await prisma.bill.findMany({ where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: todayStart } } });
   const hourly: Record<number, number> = {};
   for (const bill of todayBills) {
     const h = new Date(bill.createdAt).getHours();

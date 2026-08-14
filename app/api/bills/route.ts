@@ -18,12 +18,15 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const date = searchParams.get("date");
 
-    const where = date ? {
-      createdAt: {
-        gte: new Date(`${date}T00:00:00.000Z`),
-        lte: new Date(`${date}T23:59:59.999Z`),
-      },
-    } : {};
+    const where = {
+      tenantId: session.tenantId,
+      ...(date ? {
+        createdAt: {
+          gte: new Date(`${date}T00:00:00.000Z`),
+          lte: new Date(`${date}T23:59:59.999Z`),
+        },
+      } : {}),
+    };
 
     const bills = await prisma.bill.findMany({
       where,
@@ -49,7 +52,7 @@ export async function POST(req: NextRequest) {
     const { orderId, discount = 0 } = parsed.data;
 
     const order = await prisma.order.findUnique({
-      where: { id: orderId },
+      where: { id: orderId, tenantId: session.tenantId },
       include: { items: { include: { menuItem: { select: { name: true } } } } },
     });
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });

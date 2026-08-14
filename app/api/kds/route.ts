@@ -1,13 +1,12 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
 import {
   fireItemsInTx,
   activeTicketsForStation,
 } from "@/lib/kotEngine";
-import type { Prisma } from "@prisma/client";
 
 // GET /api/kds?station=GRILL&status=SENT,PLATED
 export async function GET(req: NextRequest) {
@@ -25,14 +24,16 @@ export async function GET(req: NextRequest) {
         ) as ("PENDING" | "SENT" | "PLATED")[])
       : (["SENT", "PLATED"] as const);
 
+    const tid = session.tenantId;
     const tickets = station
       ? await activeTicketsForStation(
           prisma as unknown as Parameters<typeof activeTicketsForStation>[0],
           station,
-          statuses as ("PENDING" | "SENT" | "PLATED")[]
+          statuses as ("PENDING" | "SENT" | "PLATED")[],
+          tid
         )
       : await prisma.kotTicket.findMany({
-          where: { status: { in: statuses as ("PENDING" | "SENT" | "PLATED")[] } },
+          where: { tenantId: tid, status: { in: statuses as ("PENDING" | "SENT" | "PLATED")[] } },
           include: {
             lines: {
               where: { status: { not: "VOIDED" } },
@@ -101,7 +102,7 @@ export async function POST(req: NextRequest) {
 
     // Verify order exists and is active
     const order = await prisma.order.findUnique({
-      where: { id: orderId },
+      where: { id: orderId, tenantId: session.tenantId },
       select: { status: true },
     });
     if (!order) {
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await withTenant(session.tenantId, session.userId, async (tx) => {
       await fireItemsInTx(
         tx as unknown as Parameters<typeof fireItemsInTx>[0],
         orderId,

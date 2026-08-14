@@ -11,17 +11,18 @@ export async function GET(req: NextRequest) {
   const q = new URL(req.url).searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) return NextResponse.json({ results: [] });
 
+  const tid = session.tenantId;
   const [customers, items, orders] = await Promise.all([
     prisma.customer.findMany({
-      where: { OR: [{ name: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }] },
+      where: { tenantId: tid, OR: [{ name: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }] },
       take: 5, select: { id: true, name: true, phone: true },
     }),
     prisma.menuItem.findMany({
-      where: { name: { contains: q, mode: "insensitive" } },
+      where: { tenantId: tid, name: { contains: q, mode: "insensitive" } },
       take: 5, select: { id: true, name: true, price: true, isAvailable: true },
     }),
     prisma.order.findMany({
-      where: { OR: [{ customerName: { contains: q, mode: "insensitive" } }, { customerPhone: { contains: q } }] },
+      where: { tenantId: tid, OR: [{ customerName: { contains: q, mode: "insensitive" } }, { customerPhone: { contains: q } }] },
       take: 5,
       select: { id: true, orderNumber: true, status: true, customerName: true, createdAt: true },
       orderBy: { createdAt: "desc" },

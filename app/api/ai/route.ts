@@ -73,17 +73,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const tid = session.tenantId;
     const [bills, topItems, settings, pendingOrders] = await Promise.all([
       prisma.bill.findMany({
-        where: { paymentStatus: "PAID", createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+        where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
         include: { order: { include: { items: { include: { menuItem: true } } } } },
       }),
       prisma.orderItem.groupBy({
         by: ["menuItemId"], _sum: { quantity: true },
+        where: { tenantId: tid } as Parameters<typeof prisma.orderItem.groupBy>[0]["where"],
         orderBy: { _sum: { quantity: "desc" } }, take: 5,
       }),
-      prisma.settings.findFirst(),
-      prisma.order.count({ where: { status: "PENDING" } }),
+      prisma.settings.findFirst({ where: { tenantId: tid } }),
+      prisma.order.count({ where: { tenantId: tid, status: "PENDING" } }),
     ]);
 
     const totalRevenue = bills.reduce((s: number, b) => s + b.total, 0);
@@ -96,7 +98,7 @@ export async function POST(req: NextRequest) {
     const yesterdayRevenue = yesterdayBills.reduce((s: number, b) => s + b.total, 0);
 
     const menuItems = await prisma.menuItem.findMany({
-      where: { id: { in: topItems.map(i => i.menuItemId) } },
+      where: { tenantId: tid, id: { in: topItems.map(i => i.menuItemId) } },
       select: { id: true, name: true, price: true },
     });
     const topItemsFormatted = topItems.map(t => {

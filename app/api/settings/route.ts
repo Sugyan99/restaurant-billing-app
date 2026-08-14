@@ -8,9 +8,9 @@ export async function GET(req: NextRequest) {
     const session = requireAuth(req);
     if (isAuthError(session)) return session;
 
-    let settings = await prisma.settings.findFirst();
+    let settings = await prisma.settings.findFirst({ where: { tenantId: session.tenantId } });
     if (!settings) {
-      settings = await prisma.settings.create({ data: {} });
+      settings = await prisma.settings.create({ data: { tenantId: session.tenantId } });
     }
     // Never expose raw API key to client — mask it
     const masked = settings.groqApiKey
@@ -27,7 +27,7 @@ export async function PUT(req: NextRequest) {
 
     const body = await req.json();
 
-    let settings = await prisma.settings.findFirst();
+    let settings = await prisma.settings.findFirst({ where: { tenantId: session.tenantId } });
 
     // Only update groqApiKey if a real new key is provided (not the masked placeholder)
     const newKey = body.groqApiKey && !body.groqApiKey.includes("****")
@@ -56,7 +56,7 @@ export async function PUT(req: NextRequest) {
     if (newKey) data.groqApiKey = newKey;
 
     if (!settings) {
-      settings = await prisma.settings.create({ data: data as Parameters<typeof prisma.settings.create>[0]["data"] });
+      settings = await prisma.settings.create({ data: { tenantId: session.tenantId, ...data } as Parameters<typeof prisma.settings.create>[0]["data"] });
     } else {
       settings = await prisma.settings.update({
         where: { id: settings.id },

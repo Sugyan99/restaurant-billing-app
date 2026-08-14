@@ -216,10 +216,11 @@ export async function voidItemInTx(
 export async function activeTicketsForStation(
   tx: Tx,
   station: string,
-  statuses: ("PENDING" | "SENT" | "PLATED")[] = ["SENT", "PLATED"]
+  statuses: ("PENDING" | "SENT" | "PLATED")[] = ["SENT", "PLATED"],
+  tenantId?: string
 ) {
   return tx.kotTicket.findMany({
-    where: { station, status: { in: statuses } },
+    where: { ...(tenantId ? { tenantId } : {}), station, status: { in: statuses } },
     include: {
       lines: {
         where: { status: { not: "VOIDED" } },

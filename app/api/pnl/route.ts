@@ -15,10 +15,11 @@ export async function GET(req: NextRequest) {
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 0, 23, 59, 59);
 
+  const tid = session.tenantId;
   const [bills, expenses, dayCloses] = await Promise.all([
-    prisma.bill.findMany({ where: { paymentStatus: "PAID", createdAt: { gte: start, lte: end } } }),
-    prisma.expense.findMany({ where: { date: { gte: start, lte: end } } }),
-    prisma.dayClose.findMany({ where: { date: { gte: start, lte: end } }, orderBy: { date: "asc" } }),
+    prisma.bill.findMany({ where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: start, lte: end } } }),
+    prisma.expense.findMany({ where: { tenantId: tid, date: { gte: start, lte: end } } }),
+    prisma.dayClose.findMany({ where: { tenantId: tid, date: { gte: start, lte: end } }, orderBy: { date: "asc" } }),
   ]);
 
   const revenue = bills.reduce((s, b) => s + b.total, 0);

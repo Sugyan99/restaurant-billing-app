@@ -13,16 +13,17 @@ export async function POST(req: NextRequest) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const tid = session.tenantId;
     const [bills, expenses, orders] = await Promise.all([
-      prisma.bill.findMany({ where: { paymentStatus: "PAID", createdAt: { gte: today } } }),
-      prisma.expense.findMany({ where: { date: { gte: today } } }),
-      prisma.order.count({ where: { createdAt: { gte: today } } }),
+      prisma.bill.findMany({ where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: today } } }),
+      prisma.expense.findMany({ where: { tenantId: tid, date: { gte: today } } }),
+      prisma.order.count({ where: { tenantId: tid, createdAt: { gte: today } } }),
     ]);
 
     const revenue = bills.reduce((s, b) => s + b.total, 0);
     const tax = bills.reduce((s, b) => s + b.cgst + b.sgst, 0);
     const expenseTotal = expenses.reduce((s, e) => s + e.amount, 0);
-    const settings = await prisma.settings.findFirst();
+    const settings = await prisma.settings.findFirst({ where: { tenantId: tid } });
 
     const report = {
       date: today.toLocaleDateString("en-IN"),

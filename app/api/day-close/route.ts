@@ -13,19 +13,20 @@ export async function GET(req: NextRequest) {
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
 
+  const tid = session.tenantId;
   // Check if today is already closed
   const existing = await prisma.dayClose.findFirst({
-    where: { date: { gte: today, lt: tomorrow } },
+    where: { tenantId: tid, date: { gte: today, lt: tomorrow } },
   });
 
   // Today's bills
   const bills = await prisma.bill.findMany({
-    where: { paymentStatus: "PAID", createdAt: { gte: today, lt: tomorrow } },
+    where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: today, lt: tomorrow } },
   });
 
   // Today's expenses
   const expenses = await prisma.expense.findMany({
-    where: { date: { gte: today, lt: tomorrow } },
+    where: { tenantId: tid, date: { gte: today, lt: tomorrow } },
   });
 
   const totalSales = bills.reduce((s, b) => s + b.total, 0);
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   const cardSales = bills.filter(b => b.paymentMode === "CARD").reduce((s, b) => s + b.total, 0);
   const creditSales = bills.filter(b => b.paymentMode === "CREDIT").reduce((s, b) => s + b.total, 0);
 
-  const settings = await prisma.settings.findFirst();
+  const settings = await prisma.settings.findFirst({ where: { tenantId: tid } });
 
   return NextResponse.json({
     isClosed: !!existing,
@@ -68,36 +69,38 @@ export async function POST(req: NextRequest) {
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
 
-  const existing = await prisma.dayClose.findFirst({
-    where: { date: { gte: today, lt: tomorrow } },
+  const tid2 = session.tenantId;
+  const existing2 = await prisma.dayClose.findFirst({
+    where: { tenantId: tid2, date: { gte: today, lt: tomorrow } },
   });
-  if (existing) {
+  if (existing2) {
     return NextResponse.json({ error: "Today is already closed" }, { status: 409 });
   }
 
-  const bills = await prisma.bill.findMany({
-    where: { paymentStatus: "PAID", createdAt: { gte: today, lt: tomorrow } },
+  const bills2 = await prisma.bill.findMany({
+    where: { tenantId: tid2, paymentStatus: "PAID", createdAt: { gte: today, lt: tomorrow } },
   });
-  const expenses = await prisma.expense.findMany({
-    where: { date: { gte: today, lt: tomorrow } },
+  const expenses2 = await prisma.expense.findMany({
+    where: { tenantId: tid2, date: { gte: today, lt: tomorrow } },
   });
 
-  const totalSales = bills.reduce((s, b) => s + b.total, 0);
-  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const totalSales = bills2.reduce((s, b) => s + b.total, 0);
+  const totalExpenses = expenses2.reduce((s, e) => s + e.amount, 0);
 
   const dayClose = await prisma.dayClose.create({
     data: {
+      tenantId: tid2,
       date: today,
       openingCash: body.openingCash ?? 0,
       closingCash: body.closingCash ?? 0,
       totalSales: parseFloat(totalSales.toFixed(2)),
-      totalOrders: bills.length,
+      totalOrders: bills2.length,
       totalExpenses: parseFloat(totalExpenses.toFixed(2)),
       netProfit: parseFloat((totalSales - totalExpenses).toFixed(2)),
-      cashSales: bills.filter(b => b.paymentMode === "CASH").reduce((s, b) => s + b.total, 0),
-      upiSales: bills.filter(b => b.paymentMode === "UPI").reduce((s, b) => s + b.total, 0),
-      cardSales: bills.filter(b => b.paymentMode === "CARD").reduce((s, b) => s + b.total, 0),
-      creditSales: bills.filter(b => b.paymentMode === "CREDIT").reduce((s, b) => s + b.total, 0),
+      cashSales: bills2.filter(b => b.paymentMode === "CASH").reduce((s, b) => s + b.total, 0),
+      upiSales: bills2.filter(b => b.paymentMode === "UPI").reduce((s, b) => s + b.total, 0),
+      cardSales: bills2.filter(b => b.paymentMode === "CARD").reduce((s, b) => s + b.total, 0),
+      creditSales: bills2.filter(b => b.paymentMode === "CREDIT").reduce((s, b) => s + b.total, 0),
       notes: body.notes ?? null,
       closedById: session.userId,
     },

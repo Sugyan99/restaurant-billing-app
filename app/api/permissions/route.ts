@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   return safeHandler("permissions/GET", async () => {
     const session = requireAuth(req);
     if (isAuthError(session)) return session;
-    const settings = await prisma.settings.findFirst();
+    const settings = await prisma.settings.findFirst({ where: { tenantId: session.tenantId } });
     const saved = (settings?.permissions as Record<string, string[]> | null) ?? {};
     const merged: Record<string, string[]> = {};
     for (const role of ["OWNER","MANAGER","CASHIER","KITCHEN"]) {
@@ -32,8 +32,8 @@ export async function PUT(req: NextRequest) {
     const { permissions } = await req.json();
     // OWNER always gets all — prevent lockout
     permissions.OWNER = ["*"];
-    let settings = await prisma.settings.findFirst();
-    if (!settings) settings = await prisma.settings.create({ data: {} });
+    let settings = await prisma.settings.findFirst({ where: { tenantId: session.tenantId } });
+    if (!settings) settings = await prisma.settings.create({ data: { tenantId: session.tenantId } });
     await prisma.settings.update({ where: { id: settings.id }, data: { permissions } });
     return NextResponse.json({ permissions });
   });

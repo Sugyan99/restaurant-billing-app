@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
 import { finalizePayment, auditLog } from "@/lib/billingEngine";
@@ -19,52 +19,40 @@ export async function POST(
   return safeHandler("bills/[id]/pay/POST", async () => {
     const session = requireAuth(req, ["OWNER", "MANAGER", "CASHIER"]);
     if (isAuthError(session)) return session;
-
     const { id } = await params;
-    const body = await req.json();
-    const parsed = paySchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Payment mode required: CASH, UPI, CARD or CREDIT" }, { status: 400 });
-    }
+    const parsed = paySchema.safeParse(await req.json());
+    if (!parsed.success) return NextResponse.json({ error: "Payment mode required: CASH, UPI, CARD or CREDIT" }, { status: 400 });
 
-    const bill = await prisma.bill.findUnique({
-      where: { id },
-      include: { order: { include: { table: true } } },
-    });
-    if (!bill) return NextResponse.json({ error: "Bill not found" }, { status: 404 });
-    if (bill.paymentStatus === "PAID") return NextResponse.json({ bill, alreadyPaid: true });
-    if ((bill as any).billStatus === "VOID") return NextResponse.json({ error: "Cannot pay a voided bill" }, { status: 400 });
-    if ((bill as any).billStatus === "HOLD") return NextResponse.json({ error: "Bill is on hold — remove hold first" }, { status: 400 });
-    if ((bill as any).discountApprovalStatus === "PENDING") {
-      return NextResponse.json({ error: "Discount awaiting manager approval — cannot collect payment yet" }, { status: 400 });
-    }
+    const { tip, roundOff, paymentMode, paidAmount: rawPaid } = parsed.data;
 
-    const { tip, roundOff, paymentMode } = parsed.data;
-    const finalTotal = bill.total + tip + roundOff;
-    const paidAmount = parsed.data.paidAmount ?? finalTotal;
-    const paymentStatus = paidAmount >= finalTotal - 0.01 ? "PAID" : "PARTIALLY_PAID";
+    return withTenant(session.tenantId, session.userId, async (tx) => {
+      const bill = await tx.bill.findFirst({
+        where: { id, tenantId: session.tenantId },
+        include: { order: { include: { table: true } } },
+      });
+      if (!bill) return NextResponse.json({ error: "Bill not found" }, { status: 404 });
+      if (bill.paymentStatus === "PAID") return NextResponse.json({ bill, alreadyPaid: true });
+      if ((bill as any).billStatus === "VOID") return NextResponse.json({ error: "Cannot pay a voided bill" }, { status: 400 });
+      if ((bill as any).billStatus === "HOLD") return NextResponse.json({ error: "Bill is on hold — remove hold first" }, { status: 400 });
+      if ((bill as any).discountApprovalStatus === "PENDING") {
+        return NextResponse.json({ error: "Discount awaiting manager approval — cannot collect payment yet" }, { status: 400 });
+      }
 
-    const updatedBill = await prisma.$transaction(async (tx: any) => {
+      const finalTotal = bill.total + tip + roundOff;
+      const paidAmount = rawPaid ?? finalTotal;
+      const paymentStatus = paidAmount >= finalTotal - 0.01 ? "PAID" : "PARTIALLY_PAID";
+
       const paid = await (tx.bill as any).update({
         where: { id },
-        data: {
-          paymentMode,
-          paymentStatus,
-          tip,
-          roundOff,
-          total: finalTotal,
-          paidAmount,
-        },
+        data: { paymentMode, paymentStatus, tip, roundOff, total: finalTotal, paidAmount },
         include: { order: { include: { items: { include: { menuItem: true } }, table: true } } },
       });
+
       await auditLog(tx as any, "BILL_PAID", paid.orderId, session.userId, {
-        paymentMode,
-        tip,
-        roundOff,
-        paidAmount,
-        total: finalTotal,
+        paymentMode, tip, roundOff, paidAmount, total: finalTotal,
         partial: paymentStatus === "PARTIALLY_PAID",
       });
+
       if (paymentStatus === "PAID") {
         await finalizePayment(tx as any, {
           orderId: paid.orderId,
@@ -72,9 +60,7 @@ export async function POST(
           order: { tableId: paid.order.tableId, customerPhone: paid.order.customerPhone },
         });
       }
-      return paid;
+      return NextResponse.json({ bill: paid });
     });
-
-    return NextResponse.json({ bill: updatedBill });
   });
 }

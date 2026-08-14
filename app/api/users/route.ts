@@ -18,7 +18,13 @@ export async function GET(req: NextRequest) {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
+  const memberIds = (await prisma.tenantMembership.findMany({
+    where: { tenantId: session.tenantId },
+    select: { userId: true },
+  })).map(m => m.userId);
+
   const users = await prisma.user.findMany({
+    where: { id: { in: memberIds } },
     select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, salary: true, createdAt: true },
     orderBy: { createdAt: "asc" },
   });
@@ -47,7 +53,12 @@ export async function POST(req: NextRequest) {
 
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { name, email, passwordHash, role, phone },
+    data: {
+      name, email, passwordHash, role, phone,
+      tenantMemberships: {
+        create: { tenantId: session.tenantId, role, status: "active" },
+      },
+    },
     select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, salary: true, createdAt: true },
   });
 

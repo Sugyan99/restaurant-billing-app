@@ -7,14 +7,15 @@ export async function GET(req: NextRequest) {
   return safeHandler("data-management/GET", async () => {
     const session = requireAuth(req, ["OWNER"]);
     if (isAuthError(session)) return session;
+    const tid = session.tenantId;
 
     const [orders, bills, expenses, customers, reservations, dayCloses] = await Promise.all([
-      prisma.order.count(),
-      prisma.bill.count(),
-      prisma.expense.count(),
-      prisma.customer.count(),
-      prisma.reservation.count(),
-      prisma.dayClose.count(),
+      prisma.order.count({ where: { tenantId: tid } }),
+      prisma.bill.count({ where: { tenantId: tid } }),
+      prisma.expense.count({ where: { tenantId: tid } }),
+      prisma.customer.count({ where: { tenantId: tid } }),
+      prisma.reservation.count({ where: { tenantId: tid } }),
+      prisma.dayClose.count({ where: { tenantId: tid } }),
     ]);
 
     return NextResponse.json({ counts: { orders, bills, expenses, customers, reservations, dayCloses } });
@@ -25,6 +26,7 @@ export async function DELETE(req: NextRequest) {
   return safeHandler("data-management/DELETE", async () => {
     const session = requireAuth(req, ["OWNER"]);
     if (isAuthError(session)) return session;
+    const tid = session.tenantId;
 
     const { type, before } = await req.json();
     if (!type || !before) return NextResponse.json({ error: "Type and before date required" }, { status: 400 });
@@ -33,25 +35,24 @@ export async function DELETE(req: NextRequest) {
     let deleted = 0;
 
     if (type === "orders") {
-      // Delete bills first (FK), then order items (cascade), then orders
       const orders = await prisma.order.findMany({
-        where: { createdAt: { lt: beforeDate }, status: { in: ["SERVED", "CANCELLED"] } },
+        where: { tenantId: tid, createdAt: { lt: beforeDate }, status: { in: ["SERVED", "CANCELLED"] } },
         select: { id: true },
       });
       const ids = orders.map(o => o.id);
-      await prisma.bill.deleteMany({ where: { orderId: { in: ids } } });
-      const r = await prisma.order.deleteMany({ where: { id: { in: ids } } });
-      deleted = r.count;
+      if (ids.length) {
+        await prisma.bill.deleteMany({ where: { tenantId: tid, orderId: { in: ids } } });
+        const r = await prisma.order.deleteMany({ where: { tenantId: tid, id: { in: ids } } });
+        deleted = r.count;
+      }
     } else if (type === "expenses") {
-      const r = await prisma.expense.deleteMany({ where: { date: { lt: beforeDate } } });
+      const r = await prisma.expense.deleteMany({ where: { tenantId: tid, date: { lt: beforeDate } } });
       deleted = r.count;
     } else if (type === "reservations") {
-      const r = await prisma.reservation.deleteMany({
-        where: { date: { lt: beforeDate }, status: { in: ["CANCELLED", "NO_SHOW"] } },
-      });
+      const r = await prisma.reservation.deleteMany({ where: { tenantId: tid, date: { lt: beforeDate }, status: { in: ["CANCELLED", "NO_SHOW"] } } });
       deleted = r.count;
     } else if (type === "dayCloses") {
-      const r = await prisma.dayClose.deleteMany({ where: { date: { lt: beforeDate } } });
+      const r = await prisma.dayClose.deleteMany({ where: { tenantId: tid, date: { lt: beforeDate } } });
       deleted = r.count;
     } else {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });
