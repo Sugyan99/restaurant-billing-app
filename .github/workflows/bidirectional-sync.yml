@@ -1,0 +1,88 @@
+name: Bidirectional Repository Sync
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# This workflow is intentionally configuration-driven.
+# Add these repository secrets later:
+#   SYNC_REPOSITORY = other-owner/other-repository
+#   SYNC_TOKEN      = token with Contents: Read and write on the other repository
+#   SYNC_BRANCH     = main (optional; defaults to main)
+#
+# The same workflow should exist in BOTH repositories.
+# A [repo-sync] commit is ignored by this workflow to prevent an infinite loop.
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bidirectional-repo-sync-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync with configured repository
+    runs-on: ubuntu-latest
+    env:
+      SYNC_REPOSITORY: ${{ secrets.SYNC_REPOSITORY }}
+      SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      SYNC_BRANCH: ${{ secrets.SYNC_BRANCH }}
+
+    steps:
+      - name: Check sync configuration
+        id: config
+        shell: bash
+        run: |
+          if [[ -z "$SYNC_REPOSITORY" || -z "$SYNC_TOKEN" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Sync is not configured yet. Add SYNC_REPOSITORY and SYNC_TOKEN repository secrets."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip sync commit
+        if: steps.config.outputs.configured == 'true' && contains(github.event.head_commit.message, '[repo-sync]')
+        run: echo "This commit was created by repository sync; stopping to prevent a sync loop."
+
+      - name: Checkout source repository
+        if: steps.config.outputs.configured == 'true' && !contains(github.event.head_commit.message, '[repo-sync]')
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure Git
+        if: steps.config.outputs.configured == 'true' && !contains(github.event.head_commit.message, '[repo-sync]')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync source HEAD to target repository
+        if: steps.config.outputs.configured == 'true' && !contains(github.event.head_commit.message, '[repo-sync]')
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET_BRANCH="${SYNC_BRANCH:-main}"
+          TARGET_URL="https://x-access-token:${SYNC_TOKEN}@github.com/${SYNC_REPOSITORY}.git"
+
+          echo "Target repository: ${SYNC_REPOSITORY}"
+          echo "Target branch: ${TARGET_BRANCH}"
+
+          git remote add sync-target "$TARGET_URL"
+          git fetch sync-target "$TARGET_BRANCH"
+
+          # Bring target-only commits into the current repository before publishing.
+          # This prevents one side's commits from being silently discarded.
+          if ! git merge-base --is-ancestor "sync-target/${TARGET_BRANCH}" HEAD; then
+            git merge --no-edit --no-ff "sync-target/${TARGET_BRANCH}" -m "[repo-sync] Merge target repository changes"
+          fi
+
+          # Publish the resulting history to the target repository.
+          # Never force-push: a non-fast-forward condition fails safely instead of overwriting history.
+          git push sync-target "HEAD:${TARGET_BRANCH}"
+
+          echo "Bidirectional sync completed successfully."
