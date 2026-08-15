@@ -129,6 +129,7 @@ model User {
   dayCloses      DayClose[]         @relation("DayClosedBy")
   purchaseOrders PurchaseOrder[]    @relation("PurchaseOrderBy")
   memberships    TenantMembership[]
+  attendance     Attendance[]
 }
 
 // === Core restaurant entities ===
@@ -750,4 +751,23 @@ model GiftCardTxn {
 
   @@index([tenantId], map: "idx_giftcardtxn_tenant")
   @@index([giftCardId])
+}
+
+model Attendance {
+  id          String    @id @default(cuid())
+  tenantId    String    @map("tenant_id") @db.Uuid
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clockIn     DateTime  @map("clock_in")
+  clockOut    DateTime? @map("clock_out")
+  breakMins   Int       @default(0) @map("break_mins")
+  note        String?
+  date        DateTime  @map("date") @db.Date
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId], map: "idx_attendance_tenant")
+  @@index([tenantId, date], map: "idx_attendance_tenant_date")
+  @@index([userId], map: "idx_attendance_user")
+  @@map("Attendance")
 }

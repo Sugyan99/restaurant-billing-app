@@ -1,39 +1,42 @@
 import { safeHandler } from "@/lib/apiHandler";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { unstable_cache } from "next/cache";
 
-// Cache QR menu for 60 seconds — menu rarely changes mid-service
-// and this endpoint is hit on every QR scan. Revalidated on menu item updates.
-const getQrMenu = unstable_cache(
-  async () => {
+// GET /api/qr/menu?tid=TENANT_ID
+// Public endpoint — no auth required. Scoped by tenantId query param.
+export async function GET(req: NextRequest) {
+  return safeHandler("qr/menu/GET", async () => {
+    const tid = new URL(req.url).searchParams.get("tid");
+
+    // Resolve tenant: by ID param, or fall back to the single configured tenant
+    const tenant = tid
+      ? await prisma.tenant.findUnique({ where: { id: tid } })
+      : await prisma.tenant.findFirst();
+
+    if (!tenant) return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
+
     const [settings, categories] = await Promise.all([
       prisma.settings.findFirst({
+        where: { tenantId: tenant.id },
         select: { restaurantName: true, address: true, phone: true, receiptHeader: true },
       }),
       prisma.category.findMany({
+        where: { tenantId: tenant.id },
         include: {
           items: {
-            where: { isAvailable: true },
+            where: { tenantId: tenant.id, isAvailable: true },
             orderBy: { name: "asc" },
-            select: {
-              id: true, name: true, description: true, price: true,
-              isVeg: true, imageUrl: true, taxRate: true,
-            },
+            select: { id: true, name: true, description: true, price: true, isVeg: true, imageUrl: true, taxRate: true },
           },
         },
         orderBy: { sortOrder: "asc" },
       }),
     ]);
-    return { settings, categories: categories.filter((c) => c.items.length > 0) };
-  },
-  ["qr-menu"],
-  { revalidate: 60 }
-);
 
-export async function GET() {
-  return safeHandler("qr/menu/GET", async () => {
-    const data = await getQrMenu();
-    return NextResponse.json(data);
+    return NextResponse.json({
+      settings,
+      categories: categories.filter(c => c.items.length > 0),
+      tenantId: tenant.id,
+    });
   });
 }

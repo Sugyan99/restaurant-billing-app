@@ -57,6 +57,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ user: null }, { status: 200 });
     }
 
-    return NextResponse.json({ user });
+    return NextResponse.json({ user: { ...user, tenantId: session.tenantId } });
   });
 }

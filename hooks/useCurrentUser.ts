@@ -6,6 +6,7 @@ type User = {
   name: string;
   role: string;
   kitchenStation?: string | null;
+  tenantId?: string;
 };
 
 export function useCurrentUser() {
@@ -24,5 +25,6 @@ export function useCurrentUser() {
     isCashier: user?.role === "CASHIER",
     isKitchen: user?.role === "KITCHEN",
     kitchenStation: user?.kitchenStation ?? null,
+    tenantId: user?.tenantId ?? null,
   };
 }

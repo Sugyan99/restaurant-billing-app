@@ -45,6 +45,7 @@ const NAV: { title: string; items: { href: string; icon: string; label: string; 
     title: "Admin",
     items: [
       { href: "/dashboard/users",          icon: "👥", label: "Staff" },
+      { href: "/dashboard/attendance",     icon: "⏱️",  label: "Attendance" },
       { href: "/dashboard/permissions",    icon: "🔑", label: "Permissions" },
       { href: "/dashboard/settings",       icon: "⚙️",  label: "Settings & QR" },
       { href: "/dashboard/data-management",icon: "🗃️", label: "Data Management" },
