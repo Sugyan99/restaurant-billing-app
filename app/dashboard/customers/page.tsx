@@ -67,17 +67,19 @@ const CAT_COLOR: Record<string, string> = {
 export default function CustomersPage() {
   return (
     <PageTabs tabs={[
-      { id: "customers", label: "Customers", icon: "👤" },
-      { id: "loyalty",   label: "Loyalty",   icon: "⭐" },
-      { id: "analytics", label: "Analytics", icon: "📊" },
-      { id: "feedback",  label: "Feedback",  icon: "💬" },
-      { id: "coupons",   label: "Coupons",   icon: "🎟️" },
+      { id: "customers",  label: "Customers",  icon: "👤" },
+      { id: "loyalty",    label: "Loyalty",    icon: "⭐" },
+      { id: "birthdays",  label: "Birthdays",  icon: "🎂" },
+      { id: "analytics",  label: "Analytics",  icon: "📊" },
+      { id: "feedback",   label: "Feedback",   icon: "💬" },
+      { id: "coupons",    label: "Coupons",    icon: "🎟️" },
     ]}>
       {tab =>
-        tab === "loyalty"   ? <LoyaltyPage />   :
-        tab === "analytics" ? <AnalyticsTab />  :
-        tab === "feedback"  ? <FeedbackTab />   :
-        tab === "coupons"   ? <CouponsTab />    :
+        tab === "loyalty"   ? <LoyaltyPage />    :
+        tab === "birthdays" ? <BirthdaysTab />   :
+        tab === "analytics" ? <AnalyticsTab />   :
+        tab === "feedback"  ? <FeedbackTab />    :
+        tab === "coupons"   ? <CouponsTab />     :
         <CustomersTab />
       }
     </PageTabs>
@@ -432,12 +434,43 @@ function CustomerDrawer({ customerId, onClose, onSaved }: { customerId: string; 
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {/* Membership Card */}
+                  <div style={{ background: `linear-gradient(135deg, ${t.bg}, ${t.color}22)`, border: `1.5px solid ${t.color}44`, borderRadius: 14, padding: "14px 16px", marginBottom: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: t.color, letterSpacing: 1 }}>Membership</div>
+                        <div style={{ fontSize: 20, fontWeight: 900, color: t.color }}>{t.icon} {t.name}</div>
+                        <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>Member since {new Date(c.createdAt).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 10, color: "#94A3B8", fontWeight: 700, textTransform: "uppercase" }}>Points</div>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: t.color }}>{c.loyaltyPoints}</div>
+                        <div style={{ fontSize: 10, color: "#64748B" }}>
+                          {t.name === "Gold" ? "Top tier 🏆" : t.name === "Silver" ? `${5000 - c.loyaltyPoints} pts to Gold` : `${1000 - c.loyaltyPoints} pts to Silver`}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ height: 5, background: "#E2E8F0", borderRadius: 3 }}>
+                        <div style={{ height: "100%", borderRadius: 3, background: t.color, width: `${Math.min(100, t.name === "Gold" ? 100 : t.name === "Silver" ? ((c.loyaltyPoints - 1000) / 4000) * 100 : (c.loyaltyPoints / 1000) * 100)}%`, transition: "width .3s" }} />
+                      </div>
+                    </div>
+                    {/* Benefits */}
+                    <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {(t.name === "Gold" ? ["Priority seating", "5% discount", "Birthday treat", "Free dessert"] :
+                        t.name === "Silver" ? ["2% discount", "Birthday offer"] :
+                        ["Earn 1pt per ₹10"]).map(b => (
+                        <span key={b} style={{ fontSize: 10, background: t.color + "22", color: t.color, borderRadius: 20, padding: "2px 8px", fontWeight: 700 }}>{b}</span>
+                      ))}
+                    </div>
+                  </div>
+
                   {[
                     { icon: "📧", label: "Email",    value: c.email || "—" },
                     { icon: "📍", label: "Address",  value: c.address || "—" },
                     { icon: "🎂", label: "Birthday", value: c.birthday || "—" },
                     { icon: "👤", label: "Gender",   value: c.gender || "—" },
-                    { icon: "📅", label: "Member since", value: new Date(c.createdAt).toLocaleDateString("en-IN") },
                     { icon: "💳", label: "Credit Balance", value: `₹${c.creditBalance.toFixed(2)}` },
                     { icon: "📝", label: "Notes",    value: c.notes || "—" },
                   ].map(row => (
@@ -757,10 +790,24 @@ const COUPON_EMPTY = { code: "", description: "", type: "PERCENT", value: "", mi
 
 function CouponsTab() {
   const { isManager } = useCurrentUser();
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm]       = useState(COUPON_EMPTY);
-  const [saving, setSaving]   = useState(false);
+  const [coupons, setCoupons]   = useState<Coupon[]>([]);
+  const [showAdd, setShowAdd]   = useState(false);
+  const [form, setForm]         = useState(COUPON_EMPTY);
+  const [saving, setSaving]     = useState(false);
+  const [validateCode, setValidateCode] = useState("");
+  const [validateResult, setValidateResult] = useState<{ ok: boolean; msg: string; coupon?: Coupon } | null>(null);
+
+  async function checkCoupon() {
+    if (!validateCode.trim()) return;
+    const res = await fetch(`/api/coupons?code=${encodeURIComponent(validateCode.trim().toUpperCase())}`);
+    const d = await res.json();
+    if (res.ok) {
+      const c = d.coupon as Coupon;
+      setValidateResult({ ok: true, msg: `✅ Valid — ${c.type === "PERCENT" ? `${c.value}% off` : `₹${c.value} off`}${c.minOrder ? ` on min ₹${c.minOrder}` : ""}`, coupon: c });
+    } else {
+      setValidateResult({ ok: false, msg: `❌ ${d.error}` });
+    }
+  }
 
   const load = useCallback(async () => {
     const res = await fetch("/api/coupons");
@@ -806,6 +853,27 @@ function CouponsTab() {
           <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748B" }}>{active} active of {coupons.length}</p>
         </div>
         {isManager && <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Create Coupon</button>}
+      </div>
+
+      {/* Validate Coupon */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-body" style={{ padding: "12px 16px" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#64748B", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>🔍 Validate Coupon Code</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input className="form-input" placeholder="Enter code e.g. SAVE20" style={{ maxWidth: 220, fontFamily: "monospace", fontWeight: 700, letterSpacing: 1 }}
+              value={validateCode}
+              onChange={e => { setValidateCode(e.target.value.toUpperCase()); setValidateResult(null); }}
+              onKeyDown={e => e.key === "Enter" && checkCoupon()} />
+            <button className="btn btn-primary" style={{ padding: "0 16px" }} onClick={checkCoupon}>Check</button>
+          </div>
+          {validateResult && (
+            <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: validateResult.ok ? "#F0FDF4" : "#FEF2F2",
+              color: validateResult.ok ? "#16A34A" : "#DC2626" }}>
+              {validateResult.msg}
+            </div>
+          )}
+        </div>
       </div>
 
       {coupons.length === 0 ? (
@@ -894,6 +962,159 @@ function CouponsTab() {
               <button className="btn btn-primary" onClick={saveCoupon} disabled={saving}>{saving ? "Creating…" : "Create Coupon"}</button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BIRTHDAYS TAB  ── full management with month filter + bulk WA
+══════════════════════════════════════════════════════════════ */
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function BirthdaysTab() {
+  const now = new Date();
+  const [month, setMonth]       = useState((now.getMonth() + 1).toString().padStart(2, "0"));
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading]   = useState(false);
+  const [sent, setSent]         = useState<Set<string>>(new Set());
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch(`/api/crm?type=birthdays&month=${month}`);
+    const d = await res.json();
+    setCustomers(d.customers ?? []);
+    setLoading(false);
+  }, [month]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function bdMsg(c: Customer) {
+    return `🎂 Happy Birthday ${c.name}!\n\nWishing you a wonderful birthday filled with joy! 🎉\n\nAs our valued ${tier(c.loyaltyPoints).name} member, enjoy a *special birthday discount* on your next visit.\n\nCome celebrate with us! We look forward to serving you. 🍽️✨`;
+  }
+
+  function openWA(c: Customer) {
+    window.open(wa(c.phone, bdMsg(c)), "_blank");
+    setSent(prev => new Set([...prev, c.id]));
+  }
+
+  function sendAll() {
+    if (customers.length === 0) return;
+    customers.forEach(c => window.open(wa(c.phone, bdMsg(c)), "_blank"));
+    setSent(new Set(customers.map(c => c.id)));
+    showToast(`Opened WhatsApp for ${customers.length} customer(s)!`);
+  }
+
+  const t = tier;
+  const upcoming = customers.filter(c => {
+    if (!c.birthday) return false;
+    const parts = c.birthday.split("-");
+    const day = parts.length === 3 ? parseInt(parts[2]) : 0;
+    return day >= now.getDate() && parseInt(month) === now.getMonth() + 1;
+  });
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>🎂 Birthday Management</h2>
+          <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748B" }}>
+            {customers.length} birthday{customers.length !== 1 ? "s" : ""} in {MONTHS[parseInt(month) - 1]}
+            {upcoming.length > 0 && ` · ${upcoming.length} upcoming`}
+          </p>
+        </div>
+        <button className="btn btn-primary"
+          style={{ background: "#25D366", borderColor: "#25D366" }}
+          onClick={sendAll}
+          disabled={customers.length === 0}>
+          📱 Send All Wishes
+        </button>
+      </div>
+
+      {/* Month Selector */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-body" style={{ padding: "12px 16px" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {MONTHS.map((m, i) => {
+              const val = (i + 1).toString().padStart(2, "0");
+              const isNow = i === now.getMonth();
+              return (
+                <button key={m} onClick={() => setMonth(val)}
+                  style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${month === val ? "#E8721C" : "#E2E8F0"}`,
+                    background: month === val ? "#E8721C" : isNow ? "#FFF7ED" : "#fff",
+                    color: month === val ? "#fff" : isNow ? "#E8721C" : "#64748B",
+                    fontWeight: month === val ? 700 : 500, fontSize: 12, cursor: "pointer" }}>
+                  {m.slice(0, 3)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "40px 0", color: "#94A3B8" }}>Loading…</div>
+      ) : customers.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 0", color: "#94A3B8" }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🎂</div>
+          <p style={{ fontWeight: 700, fontSize: 15, margin: "0 0 6px" }}>No birthdays in {MONTHS[parseInt(month) - 1]}</p>
+          <p style={{ fontSize: 13 }}>Add birthday info to customer profiles to see them here.</p>
+        </div>
+      ) : (
+        <div className="card">
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #F1F5F9" }}>
+                {["Customer", "Phone", "Birthday", "Tier", "Visits", "Total Spent", "Action"].map(h => (
+                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {customers
+                .sort((a, b) => {
+                  const dayA = parseInt((a.birthday ?? "").split("-").pop() ?? "0");
+                  const dayB = parseInt((b.birthday ?? "").split("-").pop() ?? "0");
+                  return dayA - dayB;
+                })
+                .map(c => {
+                  const ti = t(c.loyaltyPoints);
+                  const isUpcoming = upcoming.some(u => u.id === c.id);
+                  const wasSent = sent.has(c.id);
+                  return (
+                    <tr key={c.id} style={{ borderBottom: "1px solid #F1F5F9", background: isUpcoming ? "#FFFBEB" : "transparent" }}>
+                      <td style={{ padding: "12px 14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: "50%", background: ti.bg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: ti.color, fontSize: 13 }}>
+                            {c.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600 }}>{c.name}</div>
+                            {isUpcoming && <div style={{ fontSize: 10, color: "#D97706", fontWeight: 700 }}>🎉 Upcoming</div>}
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: "12px 14px", color: "#64748B" }}>{c.phone}</td>
+                      <td style={{ padding: "12px 14px", fontWeight: 600 }}>🎂 {c.birthday}</td>
+                      <td style={{ padding: "12px 14px" }}>
+                        <span style={{ fontSize: 11, background: ti.bg, color: ti.color, borderRadius: 20, padding: "2px 8px", fontWeight: 700 }}>
+                          {ti.icon} {ti.name}
+                        </span>
+                      </td>
+                      <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 700 }}>{c.totalVisits}</td>
+                      <td style={{ padding: "12px 14px", fontWeight: 700, color: "#E8721C" }}>₹{c.totalSpent.toFixed(0)}</td>
+                      <td style={{ padding: "12px 14px" }}>
+                        <button onClick={() => openWA(c)}
+                          style={{ padding: "6px 14px", background: wasSent ? "#DCFCE7" : "#25D366", color: wasSent ? "#16A34A" : "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                          {wasSent ? "✅ Sent" : "🎉 Send Wish"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
