@@ -13,7 +13,7 @@ export async function POST(
 
     const { id } = await params;
 
-    const qrOrder = await prisma.qrOrder.findUnique({ where: { id } });
+    const qrOrder = await prisma.qrOrder.findFirst({ where: { id, tenantId: session.tenantId } });
     if (!qrOrder) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (qrOrder.status !== "PENDING") {
       return NextResponse.json({ error: "Already processed" }, { status: 409 });

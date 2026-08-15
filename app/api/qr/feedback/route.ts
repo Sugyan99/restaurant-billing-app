@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const { qrOrderId, rating, comment } = parsed.data;
 
     // Verify order exists and is approved
-    const qrOrder = await prisma.qrOrder.findUnique({
+    const qrOrder = await prisma.qrOrder.findFirst({
       where: { id: qrOrderId },
       include: { feedback: { select: { id: true } } },
     });

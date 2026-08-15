@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     if (isAuthError(session)) return session;
 
     const orders = await prisma.qrOrder.findMany({
-      where: { status: "PENDING" },
+      where: { tenantId: session.tenantId, status: "PENDING" },
       orderBy: { createdAt: "asc" },
     });
 

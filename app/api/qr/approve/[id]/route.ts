@@ -83,7 +83,7 @@ export async function POST(
       await fireItemsInTx(
         tx as unknown as Parameters<typeof fireItemsInTx>[0],
         order.id, "MAIN",
-        order.items.map(i => ({ orderItemId: i.id, quantity: i.quantity }))
+        order.items.map(i => ({ orderItemId: i.id, qty: i.quantity }))
       );
 
       // Mark QR order approved + link order
