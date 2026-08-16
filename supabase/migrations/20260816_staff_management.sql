@@ -87,3 +87,12 @@ drop trigger if exists staff_perf_updated_at on public.staff_performance;
 create trigger staff_perf_updated_at before update on public.staff_performance for each row execute function public.staff_set_updated_at();
 drop trigger if exists staff_comm_updated_at on public.staff_commissions;
 create trigger staff_comm_updated_at before update on public.staff_commissions for each row execute function public.staff_set_updated_at();
+
+update public."Settings"
+set permissions = coalesce(permissions,'{}'::jsonb) || jsonb_build_object(
+  'OWNER', array['*'],
+  'MANAGER', array['home','tables','orders','bills','menu','inventory','customers','expenses','day-close','reports','gst-report','staff-report','staff','pnl','reservations','discounts','qr','import','stock-ledger','attendance'],
+  'CASHIER', array['home','tables','orders','bills','customers','reservations','staff'],
+  'KITCHEN', array['orders','staff']
+)
+where tenant_id is not null;
