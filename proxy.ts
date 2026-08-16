@@ -1,25 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 
-export function proxy(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+export async function proxy(req: NextRequest) {
+  if (!req.nextUrl.pathname.startsWith("/dashboard")) return NextResponse.next();
 
-  // Only protect dashboard routes
-  if (!pathname.startsWith("/dashboard")) return NextResponse.next();
+  const token = req.cookies.get("token")?.value;
+  if (!token) return NextResponse.redirect(new URL("/login", req.url));
 
-  // 1. JWT cookie (email/password OR Google-bridged users)
-  const hasJwt = !!req.cookies.get("token")?.value;
-  if (hasJwt) return NextResponse.next();
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return NextResponse.redirect(new URL("/login", req.url));
 
-  // 2. Supabase session cookie (chunked: sb-*-auth-token, sb-*-auth-token.0, etc.)
-  const hasSupabase = req.cookies
-    .getAll()
-    .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
-  if (hasSupabase) return NextResponse.next();
-
-  // No auth → login
-  return NextResponse.redirect(new URL("/login", req.url));
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
+      algorithms: ["HS256"],
+    });
+    if (typeof payload.userId !== "string" || typeof payload.tenantId !== "string" || typeof payload.role !== "string") {
+      throw new Error("Invalid session claims");
+    }
+    return NextResponse.next();
+  } catch {
+    const response = NextResponse.redirect(new URL("/login", req.url));
+    response.cookies.delete("token");
+    return response;
+  }
 }
 
-export const config = {
-  matcher: ["/dashboard/:path*"],
-};
+export const config = { matcher: ["/dashboard/:path*"] };
