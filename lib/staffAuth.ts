@@ -22,28 +22,19 @@ const DEFAULTS: Record<string, string[]> = {
   KITCHEN: ["staff.dashboard", "staff.view", "staff.attendance"],
 };
 
-export type StaffSession = {
-  userId: string;
-  tenantId: string;
-  role: string;
-};
+export type StaffSession = { userId: string; tenantId: string; role: string };
 
-export async function requireStaffPermission(
-  req: NextRequest,
-  permission: string,
-  options: { selfOnly?: boolean } = {}
-): Promise<StaffSession | NextResponse> {
+export async function requireStaffPermission(req: NextRequest, permission: string): Promise<StaffSession | NextResponse> {
   const base = requireAuth(req);
   if (isAuthError(base)) return base;
 
-  // Re-check membership and active status on every staff API request.
-  // This prevents a stale 7-day JWT from retaining access after deactivation/role changes.
+  // Re-check membership and active status on every staff API request so a stale JWT
+  // cannot retain access after deactivation or a role change.
   const rows = await prisma.$queryRaw<Array<{ role: string; status: string; is_active: boolean }>>`
     select tm.role, tm.status, u."isActive" as is_active
     from public.tenant_memberships tm
     join public."User" u on u.id = tm.user_id
-    where tm.tenant_id = ${base.tenantId}::uuid
-      and tm.user_id = ${base.userId}
+    where tm.tenant_id = ${base.tenantId}::uuid and tm.user_id = ${base.userId}
     limit 1
   `;
   const membership = rows[0];
@@ -52,28 +43,29 @@ export async function requireStaffPermission(
   }
 
   const role = membership.role.toUpperCase();
-  if (options.selfOnly && role !== "OWNER" && role !== "MANAGER") {
-    return { userId: base.userId, tenantId: base.tenantId, role };
-  }
-
   if (role === "OWNER") return { userId: base.userId, tenantId: base.tenantId, role };
 
   const settings = await prisma.$queryRaw<Array<{ permissions: unknown }>>`
     select permissions from public."Settings" where tenant_id = ${base.tenantId}::uuid limit 1
   `;
   const saved = settings[0]?.permissions;
-  const rolePermissions =
-    saved && typeof saved === "object" && saved !== null && Array.isArray((saved as Record<string, unknown>)[role])
-      ? ((saved as Record<string, unknown>)[role] as unknown[]).filter((v): v is string => typeof v === "string")
-      : (DEFAULTS[role] ?? []);
+  const savedRole = saved && typeof saved === "object" && saved !== null && Array.isArray((saved as Record<string, unknown>)[role])
+    ? ((saved as Record<string, unknown>)[role] as unknown[]).filter((v): v is string => typeof v === "string")
+    : [];
+  const rolePermissions = new Set([...(DEFAULTS[role] ?? []), ...savedRole]);
+
+  // Existing navigation permissions use page IDs such as "staff". They grant only
+  // the safe staff dashboard/view surface; privileged operations remain explicit.
+  if (savedRole.includes("staff") && ["staff.dashboard", "staff.view", "staff.attendance"].includes(permission)) {
+    rolePermissions.add(permission);
+  }
 
   const overrides = await prisma.$queryRaw<Array<{ permission: string; allowed: boolean }>>`
-    select permission, allowed
-    from public.staff_permission_overrides
+    select permission, allowed from public.staff_permission_overrides
     where tenant_id = ${base.tenantId}::uuid and user_id = ${base.userId}
   `;
   const override = overrides.find((x) => x.permission === permission);
-  const allowed = override ? override.allowed : rolePermissions.includes("*") || rolePermissions.includes(permission);
+  const allowed = override ? override.allowed : rolePermissions.has("*") || rolePermissions.has(permission);
   if (!allowed) return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
 
   return { userId: base.userId, tenantId: base.tenantId, role };
@@ -81,8 +73,4 @@ export async function requireStaffPermission(
 
 export function isStaffAuthError(value: StaffSession | NextResponse): value is NextResponse {
   return value instanceof NextResponse;
-}
-
-export function staffUserFilter(session: StaffSession, alias = "s.user_id") {
-  return session.role === "OWNER" || session.role === "MANAGER" ? "" : ` and ${alias} = '${session.userId.replace(/'/g, "''")}'`;
 }
