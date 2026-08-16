@@ -3,15 +3,16 @@ import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
 
+type Role = "OWNER" | "MANAGER" | "CASHIER" | "KITCHEN";
 type User = {
-  id: string; name: string; email: string; role: string;
+  id: string; name: string; email: string; role: Role;
   phone?: string; isActive: boolean; createdAt: string; salary?: number;
 };
 
 const ROLES = ["OWNER", "MANAGER", "CASHIER", "KITCHEN"] as const;
-const ROLE_COLORS: Record<string, string> = { OWNER: "#7C3AED", MANAGER: "#2563EB", CASHIER: "#16A34A", KITCHEN: "#D97706" };
-const ROLE_ICONS: Record<string, string> = { OWNER: "👑", MANAGER: "🏪", CASHIER: "💳", KITCHEN: "👨‍🍳" };
-const EMPTY_FORM = { name: "", email: "", password: "", role: "CASHIER" as const, phone: "", salary: "" };
+const ROLE_COLORS: Record<Role, string> = { OWNER: "#7C3AED", MANAGER: "#2563EB", CASHIER: "#16A34A", KITCHEN: "#D97706" };
+const ROLE_ICONS: Record<Role, string> = { OWNER: "👑", MANAGER: "🏪", CASHIER: "💳", KITCHEN: "👨‍🍳" };
+const EMPTY_FORM = { name: "", email: "", password: "", role: "CASHIER" as Role, phone: "", salary: "" };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -24,7 +25,7 @@ export default function UsersPage() {
   const load = useCallback(async () => { const res = await fetch("/api/users"); const data = await res.json(); setUsers(data.users ?? []); }, []);
   useEffect(() => { load(); }, [load]);
   function openCreate() { setEditUser(null); setForm(EMPTY_FORM); setShowPassword(false); setShowModal(true); }
-  function openEdit(user: User) { setEditUser(user); setForm({ name: user.name, email: user.email, password: "", role: user.role as typeof ROLES[number], phone: user.phone ?? "", salary: user.salary != null ? String(user.salary) : "" }); setShowPassword(false); setShowModal(true); }
+  function openEdit(user: User) { setEditUser(user); setForm({ name: user.name, email: user.email, password: "", role: user.role, phone: user.phone ?? "", salary: user.salary != null ? String(user.salary) : "" }); setShowPassword(false); setShowModal(true); }
 
   async function save() {
     if (!form.name.trim()) return showToast("Name is required", "error");
@@ -67,7 +68,7 @@ export default function UsersPage() {
     {showModal && <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}><div className="modal" style={{ maxWidth: 480 }}><h3 className="modal-title">{editUser ? `Edit ${editUser.name}` : "Add New Staff"}</h3>
       <div className="form-group"><label className="form-label">Full Name *</label><input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}/></div>
       <div className="form-group"><label className="form-label">Email Address *</label><input className="form-input" type="email" value={form.email} disabled={!!editUser} onChange={e => setForm({ ...form, email: e.target.value })}/></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}><div className="form-group"><label className="form-label">Role *</label><select className="form-select" value={form.role} onChange={e => setForm({ ...form, role: e.target.value as typeof ROLES[number] })}>{ROLES.map(r => <option key={r} value={r}>{ROLE_ICONS[r]} {r}</option>)}</select></div><div className="form-group"><label className="form-label">Phone</label><input className="form-input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/></div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}><div className="form-group"><label className="form-label">Role *</label><select className="form-select" value={form.role} onChange={e => setForm({ ...form, role: e.target.value as Role })}>{ROLES.map(r => <option key={r} value={r}>{ROLE_ICONS[r]} {r}</option>)}</select></div><div className="form-group"><label className="form-label">Phone</label><input className="form-input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/></div></div>
       <div className="form-group"><label className="form-label">Salary</label><input className="form-input" type="number" value={form.salary} onChange={e => setForm({ ...form, salary: e.target.value })}/></div>
       <div className="form-group"><label className="form-label">{editUser ? "New Password (leave blank to keep)" : "Password *"}</label><div style={{ position: "relative" }}><input className="form-input" type={showPassword ? "text" : "password"} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} style={{ paddingRight: 44 }}/><button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: 10, top: 8, background: "none", border: "none", cursor: "pointer" }}>{showPassword ? "🙈" : "👁️"}</button></div></div>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={loading}>{loading ? "Saving..." : editUser ? "Update Staff" : "Create Account"}</button></div>
