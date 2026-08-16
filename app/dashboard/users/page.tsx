@@ -1,71 +1,76 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
 
-type Staff = { id:string; name:string; email:string; role:string; phone?:string; is_active?:boolean; isActive?:boolean; salary?:number; };
-type Tab = "overview"|"staff"|"shifts"|"performance"|"commission"|"security"|"activity"|"closing";
+type User = {
+  id: string; name: string; email: string; role: string;
+  phone?: string; isActive: boolean; createdAt: string; salary?: number;
+};
 
-const TABS: {id:Tab;label:string;icon:string}[] = [
-  {id:"overview",label:"Dashboard",icon:"📊"},{id:"staff",label:"Staff & Roles",icon:"👥"},{id:"shifts",label:"Shifts",icon:"🗓️"},
-  {id:"performance",label:"Performance",icon:"⭐"},{id:"commission",label:"Commission",icon:"💸"},{id:"security",label:"Login Logs",icon:"🔐"},
-  {id:"activity",label:"Activity",icon:"📋"},{id:"closing",label:"Cashier Closing",icon:"💰"},
-];
-const PERMS=["staff.dashboard","staff.view","staff.manage","staff.attendance","staff.shift","staff.performance","staff.commission","staff.login_logs","staff.activity","staff.cashier_closing"];
+const ROLES = ["OWNER", "MANAGER", "CASHIER", "KITCHEN"] as const;
+const ROLE_COLORS: Record<string, string> = { OWNER: "#7C3AED", MANAGER: "#2563EB", CASHIER: "#16A34A", KITCHEN: "#D97706" };
+const ROLE_ICONS: Record<string, string> = { OWNER: "👑", MANAGER: "🏪", CASHIER: "💳", KITCHEN: "👨‍🍳" };
+const EMPTY_FORM = { name: "", email: "", password: "", role: "CASHIER" as const, phone: "", salary: "" };
 
-export default function StaffManagementPage(){
-  const [tab,setTab]=useState<Tab>("overview"); const [data,setData]=useState<any>({}); const [staff,setStaff]=useState<Staff[]>([]); const [loading,setLoading]=useState(false);
-  const [showAdd,setShowAdd]=useState(false); const [form,setForm]=useState({name:"",email:"",password:"",role:"CASHIER",phone:""});
-  const [shift,setShift]=useState({userId:"",shiftDate:new Date().toISOString().slice(0,10),startTime:"09:00",endTime:"17:00",note:""});
-  const [perf,setPerf]=useState({userId:"",periodStart:new Date().toISOString().slice(0,10),periodEnd:new Date().toISOString().slice(0,10),rating:"5",target:"0",achieved:"0",notes:""});
-  const [comm,setComm]=useState({userId:"",periodStart:new Date().toISOString().slice(0,10),periodEnd:new Date().toISOString().slice(0,10),basisAmount:"0",rate:"0",note:""});
-  const [close,setClose]=useState({userId:"",closingDate:new Date().toISOString().slice(0,10),openingCash:"0",actualCash:"0",notes:""});
-  const [perm,setPerm]=useState({userId:"",permission:PERMS[0],allowed:true});
+export default function UsersPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const loadStaff=useCallback(async()=>{const r=await fetch("/api/users");const d=await r.json();setStaff(d.users??[]);},[]);
-  const load=useCallback(async(t:Tab)=>{setLoading(true);try{if(t==="staff"){await loadStaff();return;}const view=t==="overview"?"dashboard":t==="commission"?"commission":t==="security"?"login-logs":t==="closing"?"cashier-closing":t;const r=await fetch(`/api/staff?view=${view}`);const d=await r.json();if(!r.ok)throw new Error(d.error??"Failed to load");setData(d);}catch(e){showToast(e instanceof Error?e.message:"Failed to load","error");}finally{setLoading(false);}},[loadStaff]);
-  useEffect(()=>{load(tab);},[tab,load]);
-  useEffect(()=>{loadStaff();},[loadStaff]);
+  const load = useCallback(async () => { const res = await fetch("/api/users"); const data = await res.json(); setUsers(data.users ?? []); }, []);
+  useEffect(() => { load(); }, [load]);
+  function openCreate() { setEditUser(null); setForm(EMPTY_FORM); setShowPassword(false); setShowModal(true); }
+  function openEdit(user: User) { setEditUser(user); setForm({ name: user.name, email: user.email, password: "", role: user.role as typeof ROLES[number], phone: user.phone ?? "", salary: user.salary != null ? String(user.salary) : "" }); setShowPassword(false); setShowModal(true); }
 
-  async function post(action:string,body:any){setLoading(true);try{const r=await fetch("/api/staff",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,...body})});const d=await r.json();if(!r.ok)throw new Error(d.error??"Request failed");showToast("Saved successfully");await load(tab);}catch(e){showToast(e instanceof Error?e.message:"Request failed","error");}finally{setLoading(false);}}
-  async function patch(action:string,body:any){try{const r=await fetch("/api/staff",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,...body})});const d=await r.json();if(!r.ok)throw new Error(d.error);showToast("Updated");await load(tab);}catch(e){showToast(e instanceof Error?e.message:"Update failed","error");}}
-  async function createStaff(){if(!form.name||!form.email||form.password.length<6)return showToast("Name, email and a 6+ character password are required","error");try{const r=await fetch("/api/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});const d=await r.json();if(!r.ok)throw new Error(d.error);showToast("Staff account created");setShowAdd(false);setForm({name:"",email:"",password:"",role:"CASHIER",phone:""});await loadStaff();}catch(e){showToast(e instanceof Error?e.message:"Failed to create","error");}}
+  async function save() {
+    if (!form.name.trim()) return showToast("Name is required", "error");
+    if (!editUser && !form.email.trim()) return showToast("Email is required", "error");
+    if (!editUser && form.password.length < 6) return showToast("Password must be at least 6 characters", "error");
+    if (form.password && form.password.length < 6) return showToast("Password must be at least 6 characters", "error");
+    setLoading(true);
+    try {
+      const body: Record<string, unknown> = { name: form.name, role: form.role, phone: form.phone };
+      if (form.salary !== "") body.salary = Number(form.salary);
+      if (!editUser) { body.email = form.email; body.password = form.password; } else if (form.password) body.password = form.password;
+      const res = await fetch(editUser ? `/api/users/${editUser.id}` : "/api/users", { method: editUser ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json(); if (!res.ok) throw new Error(data.error);
+      showToast(editUser ? "Staff updated!" : "Staff account created!"); setShowModal(false); setEditUser(null); setForm(EMPTY_FORM); await load();
+    } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Failed to save", "error"); } finally { setLoading(false); }
+  }
 
-  const active=staff.filter(s=>s.isActive!==false&&s.is_active!==false).length;
-  const metric=(label:string,value:any)=> <div className="card" style={{padding:16}}><div style={{fontSize:11,color:"#64748B",fontWeight:700}}>{label}</div><div style={{fontSize:24,fontWeight:800,marginTop:5}}>{value??0}</div></div>;
-  const input=(label:string,value:string,onChange:(v:string)=>void,type="text")=><div className="form-group"><label className="form-label">{label}</label><input className="form-input" type={type} value={value} onChange={e=>onChange(e.target.value)}/></div>;
-  const select=(label:string,value:string,onChange:(v:string)=>void,options:{value:string;label:string}[])=> <div className="form-group"><label className="form-label">{label}</label><select className="form-select" value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></div>;
+  async function toggleActive(user: User) {
+    const res = await fetch(`/api/users/${user.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: !user.isActive }) });
+    if (res.ok) { showToast(user.isActive ? `${user.name} deactivated` : `${user.name} activated`); await load(); } else showToast((await res.json()).error, "error");
+  }
+  async function deleteUser(user: User) {
+    if (!confirm(`Delete/deactivate ${user.name}? This performs a soft delete.`)) return;
+    const res = await fetch(`/api/users/${user.id}`, { method: "DELETE" }); const data = await res.json();
+    if (res.ok) { showToast(`${user.name} deleted`); await load(); } else showToast(data.error, "error");
+  }
 
+  const active = users.filter(u => u.isActive), inactive = users.filter(u => !u.isActive);
   return <div>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,gap:12}}><div><h2 style={{margin:0,fontSize:20,fontWeight:800}}>Staff Management</h2><p style={{margin:"3px 0 0",fontSize:13,color:"#64748B"}}>Roles, permissions, attendance, shifts, performance, commission and cashier controls</p></div><button className="btn btn-primary" onClick={()=>setShowAdd(true)}>+ Add Staff</button></div>
-    <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:18}}>{TABS.map(t=><button key={t.id} className={tab===t.id?"btn btn-primary":"btn btn-ghost"} onClick={()=>setTab(t.id)}>{t.icon} {t.label}</button>)}</div>
-
-    {loading&&<div style={{fontSize:12,color:"#64748B",marginBottom:10}}>Loading…</div>}
-
-    {tab==="overview"&&<>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:16}}>
-        {metric("Active staff",data.counts?.active_staff)}{metric("Today's shifts",data.shifts?.scheduled)}{metric("Completed shifts",data.shifts?.completed)}{metric("Avg rating",data.performance?.avg_rating)}{metric("Pending commission",`₹${Number(data.commissions?.pending??0).toFixed(0)}`)}{metric("30-day cash variance",`₹${Number(data.closings?.variance??0).toFixed(0)}`)}{metric("Failed logins / 24h",data.loginSecurity?.failed)}
-      </div>
-      <div className="card"><div className="card-header"><h3 className="card-title">Recent staff activity</h3></div><div style={{padding:16}}>{(data.recentActivity??[]).map((r:any)=><div key={r.id} style={{padding:"9px 0",borderBottom:"1px solid #F1F5F9",fontSize:12}}><b>{r.name??"System"}</b> · {r.action} · {r.entity} <span style={{color:"#94A3B8",float:"right"}}>{new Date(r.created_at).toLocaleString("en-IN")}</span></div>)}{!(data.recentActivity??[]).length&&<div style={{color:"#94A3B8"}}>No staff activity yet.</div>}</div></div>
-    </>}
-
-    {tab==="staff"&&<>
-      <div className="card"><div className="card-header"><h3 className="card-title">Staff & Roles</h3><span style={{fontSize:12,color:"#64748B"}}>{active} active / {staff.length} total</span></div><div style={{padding:16,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>{staff.map(s=><div key={s.id} style={{border:"1px solid #E2E8F0",borderRadius:10,padding:14}}><div style={{display:"flex",justifyContent:"space-between"}}><div><b>{s.name}</b><div style={{fontSize:11,color:"#64748B"}}>{s.email}</div></div><span style={{fontSize:10,fontWeight:800}}>{s.role}</span></div><div style={{fontSize:11,color:"#64748B",marginTop:8}}>{s.phone||"No phone"} · {s.isActive===false?"Inactive":"Active"}</div><button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={()=>setPerm(p=>({...p,userId:s.id}))}>Set permission override</button></div>)}</div></div>
-      <div className="card" style={{marginTop:14,padding:16}}><h3 className="card-title">Permission override</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,marginTop:10}}>{select("Staff",perm.userId,v=>setPerm({...perm,userId:v}),staff.map(s=>({value:s.id,label:`${s.name} (${s.role})`})))}{select("Permission",perm.permission,v=>setPerm({...perm,permission:v}),PERMS.map(p=>({value:p,label:p})))}{select("Access",String(perm.allowed),v=>setPerm({...perm,allowed:v==="true"}),[{value:"true",label:"Allow"},{value:"false",label:"Deny"}])}</div><button className="btn btn-primary" onClick={()=>post("permission_override",perm)}>Save override</button></div>
-    </>}
-
-    {tab==="shifts"&&<><div className="card" style={{padding:16,marginBottom:14}}><h3 className="card-title">Schedule shift</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginTop:10}}>{select("Staff",shift.userId,v=>setShift({...shift,userId:v}),staff.map(s=>({value:s.id,label:s.name})))}{input("Date",shift.shiftDate,v=>setShift({...shift,shiftDate:v}),"date")}{input("Start",shift.startTime,v=>setShift({...shift,startTime:v}),"time")}{input("End",shift.endTime,v=>setShift({...shift,endTime:v}),"time")}{input("Note",shift.note,v=>setShift({...shift,note:v}))}</div><button className="btn btn-primary" onClick={()=>post("shift",{...shift,startTime:`${shift.shiftDate}T${shift.startTime}:00+05:30`,endTime:`${shift.shiftDate}T${shift.endTime}:00+05:30`})}>Schedule</button></div><Table rows={data.rows} columns={["name","shift_date","start_time","end_time","status"]} onAction={(r:any)=>patch("shift_status",{id:r.id,status:r.status==="scheduled"?"completed":"scheduled"})}/></>}
-
-    {tab==="performance"&&<><div className="card" style={{padding:16,marginBottom:14}}><h3 className="card-title">Performance review</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginTop:10}}>{select("Staff",perf.userId,v=>setPerf({...perf,userId:v}),staff.map(s=>({value:s.id,label:s.name})))}{input("Start",perf.periodStart,v=>setPerf({...perf,periodStart:v}),"date")}{input("End",perf.periodEnd,v=>setPerf({...perf,periodEnd:v}),"date")}{input("Rating 0–5",perf.rating,v=>setPerf({...perf,rating:v}),"number")}{input("Target",perf.target,v=>setPerf({...perf,target:v}),"number")}{input("Achieved",perf.achieved,v=>setPerf({...perf,achieved:v}),"number")}</div>{input("Notes",perf.notes,v=>setPerf({...perf,notes:v}))}<button className="btn btn-primary" onClick={()=>post("performance",{...perf,rating:Number(perf.rating),target:Number(perf.target),achieved:Number(perf.achieved)})}>Save review</button></div><Table rows={data.rows} columns={["name","period_start","period_end","rating","target","achieved"]}/></>}
-
-    {tab==="commission"&&<><div className="card" style={{padding:16,marginBottom:14}}><h3 className="card-title">Commission</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginTop:10}}>{select("Staff",comm.userId,v=>setComm({...comm,userId:v}),staff.map(s=>({value:s.id,label:s.name})))}{input("Start",comm.periodStart,v=>setComm({...comm,periodStart:v}),"date")}{input("End",comm.periodEnd,v=>setComm({...comm,periodEnd:v}),"date")}{input("Basis amount",comm.basisAmount,v=>setComm({...comm,basisAmount:v}),"number")}{input("Rate %",comm.rate,v=>setComm({...comm,rate:v}),"number")}</div>{input("Note",comm.note,v=>setComm({...comm,note:v}))}<button className="btn btn-primary" onClick={()=>post("commission",{...comm,basisAmount:Number(comm.basisAmount),rate:Number(comm.rate)})}>Create commission</button></div><Table rows={data.rows} columns={["name","period_start","period_end","basis_amount","rate","amount","status"]} onAction={(r:any)=>patch("commission_status",{id:r.id,status:r.status==="pending"?"approved":r.status==="approved"?"paid":"pending"})}/></>}
-
-    {tab==="security"&&<Table rows={data.rows} columns={["created_at","name","email","success","ip_address","failure_reason"]}/>} 
-    {tab==="activity"&&<Table rows={data.rows} columns={["created_at","name","role","action","entity","entity_id"]}/>} 
-
-    {tab==="closing"&&<><div className="card" style={{padding:16,marginBottom:14}}><h3 className="card-title">Cashier closing</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginTop:10}}>{select("Cashier",close.userId,v=>setClose({...close,userId:v}),staff.filter(s=>["CASHIER","OWNER","MANAGER"].includes(s.role)).map(s=>({value:s.id,label:s.name})))}{input("Date",close.closingDate,v=>setClose({...close,closingDate:v}),"date")}{input("Opening cash",close.openingCash,v=>setClose({...close,openingCash:v}),"number")}{input("Actual cash",close.actualCash,v=>setClose({...close,actualCash:v}),"number")}</div>{input("Notes",close.notes,v=>setClose({...close,notes:v}))}<button className="btn btn-primary" onClick={()=>post("closing",{...close,openingCash:Number(close.openingCash),actualCash:Number(close.actualCash)})}>Submit closing</button></div><Table rows={data.rows} columns={["closing_date","name","opening_cash","expected_cash","actual_cash","variance","status","approver_name"]} onAction={(r:any)=>r.status==="submitted"?patch("approve_closing",{id:r.id}):undefined}/></>}
-
-    {showAdd&&<div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowAdd(false)}><div className="modal" style={{maxWidth:480}}><h3 className="modal-title">Add Staff</h3>{input("Name",form.name,v=>setForm({...form,name:v}))}{input("Email",form.email,v=>setForm({...form,email:v}),"email")}{input("Password",form.password,v=>setForm({...form,password:v}),"password")}{select("Role",form.role,v=>setForm({...form,role:v}),[{value:"MANAGER",label:"Manager"},{value:"CASHIER",label:"Cashier"},{value:"KITCHEN",label:"Kitchen"}])}{input("Phone",form.phone,v=>setForm({...form,phone:v}))}<div style={{display:"flex",justifyContent:"flex-end",gap:8}}><button className="btn btn-ghost" onClick={()=>setShowAdd(false)}>Cancel</button><button className="btn btn-primary" onClick={createStaff}>Create</button></div></div></div>}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, gap: 10 }}>
+      <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Staff Management</h2><p style={{ margin: "2px 0 0", fontSize: 13, color: "#64748B" }}>{active.length} active · {inactive.length} inactive</p></div>
+      <div style={{ display: "flex", gap: 8 }}><Link className="btn btn-ghost" href="/dashboard/users/operations">Advanced Staff Operations</Link><button className="btn btn-primary" onClick={openCreate}>+ Add Staff</button></div>
+    </div>
+    <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>{ROLES.map(role => <div key={role} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: ROLE_COLORS[role], display: "inline-block" }} />{ROLE_ICONS[role]} {role}</div>)}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 24 }}>
+      {active.map(user => <div key={user.id} className="card" style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, background: `${ROLE_COLORS[user.role]}20`, border: `2px solid ${ROLE_COLORS[user.role]}40` }}>{ROLE_ICONS[user.role]}</div><div><div style={{ fontWeight: 700, fontSize: 15 }}>{user.name}</div><div style={{ fontSize: 12, color: "#64748B" }}>{user.email}</div>{user.phone && <div style={{ fontSize: 12, color: "#94A3B8" }}>📞 {user.phone}</div>}</div></div><span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: `${ROLE_COLORS[user.role]}15`, color: ROLE_COLORS[user.role] }}>{user.role}</span></div><div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}><button className="btn btn-ghost btn-sm" onClick={() => openEdit(user)}>✏️ Edit</button><button className="btn btn-danger btn-sm" onClick={() => toggleActive(user)}>🚫 Deactivate</button><button className="btn btn-danger btn-sm" onClick={() => deleteUser(user)}>🗑 Delete</button></div></div>)}
+    </div>
+    {inactive.length > 0 && <div className="card"><div className="card-header"><h3 className="card-title">Inactive Staff ({inactive.length})</h3></div><div style={{ padding: "0 20px 20px" }}>{inactive.map(user => <div key={user.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #F1F5F9", opacity: .6 }}><div style={{ display: "flex", alignItems: "center", gap: 10 }}><span>{ROLE_ICONS[user.role]}</span><div><div style={{ fontWeight: 600, fontSize: 13 }}>{user.name}</div><div style={{ fontSize: 12, color: "#94A3B8" }}>{user.role} · {user.email}</div></div></div><div style={{ display: "flex", gap: 8 }}><button className="btn btn-success btn-sm" onClick={() => toggleActive(user)}>✓ Reactivate</button><button className="btn btn-danger btn-sm" onClick={() => deleteUser(user)}>🗑 Delete</button></div></div>)}</div></div>}
+    {users.length === 0 && <div style={{ textAlign: "center", padding: "60px 0", color: "#94A3B8" }}><div style={{ fontSize: 40, marginBottom: 12 }}>👥</div><p style={{ fontSize: 15, fontWeight: 600 }}>No staff accounts yet</p><button className="btn btn-primary" onClick={openCreate}>+ Add First Staff</button></div>}
+    {showModal && <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}><div className="modal" style={{ maxWidth: 480 }}><h3 className="modal-title">{editUser ? `Edit ${editUser.name}` : "Add New Staff"}</h3>
+      <div className="form-group"><label className="form-label">Full Name *</label><input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}/></div>
+      <div className="form-group"><label className="form-label">Email Address *</label><input className="form-input" type="email" value={form.email} disabled={!!editUser} onChange={e => setForm({ ...form, email: e.target.value })}/></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}><div className="form-group"><label className="form-label">Role *</label><select className="form-select" value={form.role} onChange={e => setForm({ ...form, role: e.target.value as typeof ROLES[number] })}>{ROLES.map(r => <option key={r} value={r}>{ROLE_ICONS[r]} {r}</option>)}</select></div><div className="form-group"><label className="form-label">Phone</label><input className="form-input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/></div></div>
+      <div className="form-group"><label className="form-label">Salary</label><input className="form-input" type="number" value={form.salary} onChange={e => setForm({ ...form, salary: e.target.value })}/></div>
+      <div className="form-group"><label className="form-label">{editUser ? "New Password (leave blank to keep)" : "Password *"}</label><div style={{ position: "relative" }}><input className="form-input" type={showPassword ? "text" : "password"} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} style={{ paddingRight: 44 }}/><button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: 10, top: 8, background: "none", border: "none", cursor: "pointer" }}>{showPassword ? "🙈" : "👁️"}</button></div></div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={loading}>{loading ? "Saving..." : editUser ? "Update Staff" : "Create Account"}</button></div>
+    </div></div>}
   </div>;
 }
-
-function Table({rows=[],columns,onAction}:{rows:any[];columns:string[];onAction?:(r:any)=>void}){return <div className="card" style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}><thead><tr>{columns.map(c=><th key={c} style={{textAlign:"left",padding:10,borderBottom:"1px solid #E2E8F0",whiteSpace:"nowrap"}}>{c.replace(/_/g," ").toUpperCase()}</th>)}{onAction&&<th/>}</tr></thead><tbody>{rows?.map((r,i)=><tr key={String(r.id??i)}>{columns.map(c=><td key={c} style={{padding:10,borderBottom:"1px solid #F1F5F9",whiteSpace:"nowrap"}}>{typeof r[c]==="boolean"?(r[c]?"Yes":"No"):r[c] instanceof Object?JSON.stringify(r[c]):String(r[c]??"—")}</td>)}{onAction&&<td><button className="btn btn-ghost btn-sm" onClick={()=>onAction(r)}>Update</button></td>}</tr>)}</tbody></table>{!rows?.length&&<div style={{padding:24,textAlign:"center",color:"#94A3B8"}}>No records found.</div>}</div>}
