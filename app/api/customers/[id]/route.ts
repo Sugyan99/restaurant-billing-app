@@ -13,7 +13,7 @@ export async function GET(
     const { id } = await params;
 
     const data = await withTenant(session.tenantId, session.userId, async (tx) => {
-      const customer = await tx.customer.findUnique({ where: { id } });
+      const customer = await tx.customer.findFirst({ where: { id, tenantId: session.tenantId } });
       if (!customer) return null;
 
       const orders = await tx.order.findMany({
@@ -62,8 +62,10 @@ export async function PUT(
     if (isAuthError(session)) return session;
     const { id } = await params;
     const body = await req.json();
-    const customer = await withTenant(session.tenantId, session.userId, (tx) =>
-      tx.customer.update({
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const existing = await tx.customer.findFirst({ where: { id, tenantId: session.tenantId } });
+      if (!existing) return { notFound: true } as const;
+      const customer = await tx.customer.update({
         where: { id },
         data: {
           name: body.name,
@@ -74,9 +76,11 @@ export async function PUT(
           gender: body.gender || null,
           creditBalance: Math.max(0, body.creditBalance ?? 0),
         },
-      })
-    );
-    return NextResponse.json({ customer });
+      });
+      return { customer } as const;
+    });
+    if ("notFound" in result) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    return NextResponse.json({ customer: (result as { customer: unknown }).customer });
   });
 }
 
@@ -90,7 +94,7 @@ export async function DELETE(
     const { id } = await params;
 
     const result = await withTenant(session.tenantId, session.userId, async (tx) => {
-      const customer = await tx.customer.findUnique({ where: { id } });
+      const customer = await tx.customer.findFirst({ where: { id, tenantId: session.tenantId } });
       if (!customer) return { notFound: true } as const;
       const active = await tx.order.count({
         where: { customerPhone: customer.phone, status: { in: ["PENDING", "PREPARING", "READY"] }, tenantId: session.tenantId },

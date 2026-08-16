@@ -18,30 +18,34 @@ export async function GET(req: NextRequest) {
     const session = requireAuth(req);
     if (isAuthError(session)) return session;
 
+    const tid = session.tenantId;
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const rating = searchParams.get("rating");
 
-    const feedback = await prisma.customerFeedback.findMany({
-      where: {
-        ...(category ? { category } : {}),
-        ...(rating ? { rating: parseInt(rating) } : {}),
-      },
-      include: { customer: { select: { name: true, phone: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
-
-    const stats = await prisma.customerFeedback.aggregate({
-      _avg: { rating: true },
-      _count: { id: true },
-    });
-
-    const dist = await prisma.customerFeedback.groupBy({
-      by: ["rating"],
-      _count: { id: true },
-      orderBy: { rating: "desc" },
-    });
+    const [feedback, stats, dist] = await Promise.all([
+      prisma.customerFeedback.findMany({
+        where: {
+          tenantId: tid,
+          ...(category ? { category } : {}),
+          ...(rating ? { rating: parseInt(rating) } : {}),
+        },
+        include: { customer: { select: { name: true, phone: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      prisma.customerFeedback.aggregate({
+        where: { tenantId: tid },
+        _avg: { rating: true },
+        _count: { id: true },
+      }),
+      prisma.customerFeedback.groupBy({
+        by: ["rating"],
+        where: { tenantId: tid },
+        _count: { id: true },
+        orderBy: { rating: "desc" },
+      }),
+    ]);
 
     return NextResponse.json({ feedback, stats, distribution: dist });
   });
@@ -61,16 +65,21 @@ export async function POST(req: NextRequest) {
 
     let customerId: string | null = null;
     if (customerPhone) {
-      const c = await prisma.customer.findFirst({ where: { phone: customerPhone, tenantId: session.tenantId } });
+      const c = await prisma.customer.findFirst({
+        where: { phone: customerPhone, tenantId: session.tenantId },
+      });
       if (c) customerId = c.id;
     }
 
     const feedback = await prisma.customerFeedback.create({
       data: {
+        tenantId: session.tenantId,
         customerId,
         customerPhone: customerPhone || null,
         customerName: customerName || null,
-        rating, comment: comment || null, category,
+        rating,
+        comment: comment || null,
+        category,
         orderId: orderId || null,
       },
     });
