@@ -24,7 +24,7 @@ function buildUrl(raw: string | undefined): string | undefined {
     if (m && (u.port === "5432" || u.port === "")) {
       const ref = m[1];
       // Rewrite to session pooler — keeps prepared-statement support (unlike port 6543)
-      u.hostname = "aws-0-ap-southeast-1.pooler.supabase.com";
+      u.hostname = "aws-1-ap-south-1.pooler.supabase.com";
       u.port = "5432";
       // Pooler requires  postgres.PROJECT_REF  as username
       if (!u.username.includes(".")) {
