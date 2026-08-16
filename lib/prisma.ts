@@ -1,84 +1,97 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 
-// ── Admin client (postgres superuser — bypasses RLS) ──────────────────────────
-// Use ONLY for: auth operations, migrations, super-admin tasks.
-// NEVER use for tenant-scoped data queries.
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Append serverless-safe parameters to a database URL:
+ *   connection_limit=3    – cap connections per lambda instance
+ *   pool_timeout=15       – wait up to 15s for a free slot
+ *   connect_timeout=15    – wait up to 15s on initial connect (DB wakeup)
+ *   socket_timeout=30     – drop idle sockets after 30s
+ *
+ * For pgBouncer URLs (port 6543) also add pgbouncer=true.
+ */
+function buildUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const u = new URL(raw);
+    if (!u.searchParams.has("connection_limit"))
+      u.searchParams.set("connection_limit", "3");
+    if (!u.searchParams.has("pool_timeout"))
+      u.searchParams.set("pool_timeout", "15");
+    if (!u.searchParams.has("connect_timeout"))
+      u.searchParams.set("connect_timeout", "15");
+    // If the URL targets the Supabase pooler port, enable pgBouncer mode
+    if (u.port === "6543" && !u.searchParams.has("pgbouncer"))
+      u.searchParams.set("pgbouncer", "true");
+    return u.toString();
+  } catch {
+    return raw; // malformed URL — return as-is, let Prisma surface the error
+  }
+}
+
+// ── Admin client (postgres superuser — bypasses RLS) ─────────────────────────
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const datasourceUrl =
+const rawUrl =
   process.env.POSTGRES_PRISMA_URL ||
   process.env.DATABASE_URL ||
   process.env.POSTGRES_URL;
 
-if (!datasourceUrl) {
-  console.error(
-    "❌ No database URL found. Set DATABASE_URL or POSTGRES_PRISMA_URL."
-  );
+if (!rawUrl) {
+  console.error("❌ No database URL found. Set DATABASE_URL or POSTGRES_PRISMA_URL.");
 }
 
+const datasourceUrl = buildUrl(rawUrl);
+
 export const prisma =
-  globalForPrisma.prisma ?? new PrismaClient({ datasourceUrl });
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    datasourceUrl,
+    log: process.env.NODE_ENV !== "production" ? ["error"] : [],
+  });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
-// ── App client (prisma_app role — subject to RLS) ─────────────────────────────
-// Connects as a non-superuser role. All queries respect RLS policies.
-// Must ALWAYS be used inside withTenant() so tenant context is set first.
+// ── App client (prisma_app role — subject to RLS) ────────────────────────────
 
 const globalForPrismaApp = globalThis as unknown as {
   prismaApp: PrismaClient | undefined;
 };
 
-const appDatasourceUrl =
+const rawAppUrl =
   process.env.APP_DATABASE_URL ||
-  process.env.POSTGRES_PRISMA_URL ||  // fallback for local dev (RLS not enforced locally)
+  process.env.POSTGRES_PRISMA_URL ||
   process.env.DATABASE_URL;
 
 export const prismaApp =
   globalForPrismaApp.prismaApp ??
-  new PrismaClient({ datasourceUrl: appDatasourceUrl });
+  new PrismaClient({
+    datasourceUrl: buildUrl(rawAppUrl),
+    log: process.env.NODE_ENV !== "production" ? ["error"] : [],
+  });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrismaApp.prismaApp = prismaApp;
 }
 
-// ── withTenant — the ONLY correct way to run tenant-scoped queries ────────────
-//
-// Usage:
-//   const orders = await withTenant(session.tenantId, session.userId, (tx) =>
-//     tx.order.findMany({ where: { tenantId: session.tenantId, status: "ACTIVE" } })
-//   );
-//
-// What it does:
-//   1. Opens a Prisma transaction (single DB connection, single transaction block)
-//   2. Calls set_tenant_context(tenantId, userId) — validates membership in DB
-//   3. DB sets SET LOCAL app.current_tenant_id = tenantId (transaction-scoped)
-//   4. RLS policy `prisma_app_tenant_all` allows only rows where
-//      tenant_id = current_setting('app.current_tenant_id')
-//   5. Your query fn runs — can ONLY see/write rows for tenantId
-//   6. Transaction ends — session variable is cleared automatically
+// ── withTenant ────────────────────────────────────────────────────────────────
 
 export async function withTenant<T>(
   tenantId: string,
   userId: string,
   fn: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
-  // When APP_DATABASE_URL is set, use prisma_app role with full RLS enforcement.
-  // Otherwise (superuser fallback via POSTGRES_PRISMA_URL / DATABASE_URL), skip the
-  // $transaction wrapper entirely — interactive transactions require session-mode or
-  // direct connections; the pgBouncer transaction-mode pooler (Supabase port 6543)
-  // will silently fail. Security falls back to the WHERE clause in each query.
   if (process.env.APP_DATABASE_URL) {
     return prismaApp.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_tenant_context(${tenantId}::uuid, ${userId})`;
       return fn(tx);
     });
   }
-  // Superuser path: RLS bypassed, WHERE tenantId in every query is the guard.
   return fn(prisma as unknown as Prisma.TransactionClient);
 }
