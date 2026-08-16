@@ -3,39 +3,31 @@ import { PrismaClient, Prisma } from "@prisma/client";
 // ─────────────────────────────────────────────────────────────────────────────
 // URL transformer
 //
-// Supabase free-tier direct connections (db.PROJECT.supabase.co:5432) cause
-// P1001 errors in Vercel serverless because:
-//   1. Free projects pause after inactivity — first request fails while DB wakes up
-//   2. Each lambda opens a new TCP connection — no pooling, connection limit hit fast
-//
-// Fix: detect the direct URL pattern and silently rewrite to the Supabase
-// session-mode pooler (same port 5432, different host). The pooler:
-//   - stays alive even when the underlying DB is paused
-//   - wakes the DB transparently
-//   - manages connections efficiently for serverless
+// Supabase direct connections (db.PROJECT.supabase.co:5432) are IPv6-first and
+// can fail from Vercel's IPv4-only runtime. Rewrite direct URLs to the shared
+// Supavisor session pooler in the project's region. Session mode is intentional
+// here because withTenant() uses Prisma interactive transactions.
 // ─────────────────────────────────────────────────────────────────────────────
 function buildUrl(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
   try {
     const u = new URL(raw);
 
-    // Detect direct Supabase URL: db.PROJECT_REF.supabase.co  port 5432
+    // Detect direct Supabase URL: db.PROJECT_REF.supabase.co port 5432
     const m = u.hostname.match(/^db\.([a-z0-9]+)\.supabase\.co$/);
     if (m && (u.port === "5432" || u.port === "")) {
       const ref = m[1];
-      // Rewrite to session pooler — keeps prepared-statement support (unlike port 6543)
       u.hostname = "aws-1-ap-south-1.pooler.supabase.com";
       u.port = "5432";
-      // Pooler requires  postgres.PROJECT_REF  as username
       if (!u.username.includes(".")) {
         u.username = `${u.username}.${ref}`;
       }
       console.log(`[prisma] ✅ Rewrote direct URL → session pooler (ref=${ref})`);
     }
 
-    // Serverless-safe connection params
+    // Vercel/serverless safety: keep one DB connection per Prisma client.
     if (!u.searchParams.has("connection_limit"))
-      u.searchParams.set("connection_limit", "3");
+      u.searchParams.set("connection_limit", "1");
     if (!u.searchParams.has("pool_timeout"))
       u.searchParams.set("pool_timeout", "20");
     if (!u.searchParams.has("connect_timeout"))
