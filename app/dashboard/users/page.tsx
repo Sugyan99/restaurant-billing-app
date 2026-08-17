@@ -11,7 +11,7 @@ type User = {
 const ROLES = ["OWNER", "MANAGER", "CASHIER", "KITCHEN"] as const;
 const ROLE_COLORS: Record<string, string> = { OWNER: "#7C3AED", MANAGER: "#2563EB", CASHIER: "#16A34A", KITCHEN: "#D97706" };
 const ROLE_ICONS: Record<string, string> = { OWNER: "👑", MANAGER: "🏪", CASHIER: "💳", KITCHEN: "👨‍🍳" };
-const EMPTY_FORM = { name: "", email: "", password: "", role: "CASHIER" as const, phone: "", salary: "" };
+const EMPTY_FORM = { name: "", email: "", password: "", role: "CASHIER" as (typeof ROLES)[number], phone: "", salary: "" };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
