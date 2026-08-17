@@ -48,7 +48,7 @@ export async function POST(
         include: { order: { include: { items: { include: { menuItem: true } }, table: true } } },
       });
 
-      await auditLog(tx as any, "BILL_PAID", paid.orderId, session.userId, session.tenantId, {
+      await auditLog(tx as any, "BILL_PAID", paid.orderId, session.userId, {
         paymentMode, tip, roundOff, paidAmount, total: finalTotal,
         partial: paymentStatus === "PARTIALLY_PAID",
       });
@@ -58,7 +58,7 @@ export async function POST(
           orderId: paid.orderId,
           total: paid.total,
           order: { tableId: paid.order.tableId, customerPhone: paid.order.customerPhone },
-        }, session.tenantId);
+        });
       }
       return NextResponse.json({ bill: paid });
     });
