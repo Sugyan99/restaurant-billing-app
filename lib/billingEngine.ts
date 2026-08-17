@@ -214,11 +214,13 @@ export async function auditLog(
   action: string,
   orderId: string,
   actor: string,
+  tenantId: string,
   meta?: Record<string, unknown>
 ): Promise<void> {
   await tx.billingAuditLog.create({
     data: {
       id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      tenantId,
       orderId,
       action,
       actor,
@@ -277,7 +279,8 @@ export async function createInvoice(
     await clearDraft(tx, orderId);
 
     // d. Audit log
-    await auditLog(tx, "BILL_CREATED", orderId, userId ?? "system", {
+    if (!tenantId) throw new Error("Tenant context is required for billing audit logging");
+    await auditLog(tx, "BILL_CREATED", orderId, userId ?? "system", tenantId, {
       orderId,
       subtotal: calc.subtotal,
       discount: calc.discount,
