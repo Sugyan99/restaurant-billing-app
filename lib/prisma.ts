@@ -4,28 +4,36 @@ import { PrismaClient, Prisma } from "@prisma/client";
 // URL transformer
 //
 // Supabase direct connections (db.PROJECT.supabase.co:5432) are IPv6-first and
-// can fail from Vercel's IPv4-only runtime. Rewrite direct URLs to the shared
-// Supavisor session pooler in the project's region. Session mode is intentional
-// here because withTenant() uses Prisma interactive transactions.
+// can fail from Vercel's IPv4-only runtime. Use Supavisor transaction pooling
+// for Vercel/serverless traffic. Transaction-local tenant context remains valid
+// because the context is set inside the same database transaction.
 // ─────────────────────────────────────────────────────────────────────────────
 function buildUrl(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
   try {
     const u = new URL(raw);
+    const isVercel = process.env.VERCEL === "1" || process.env.VERCEL === "true";
 
     // Detect direct Supabase URL: db.PROJECT_REF.supabase.co port 5432
     const m = u.hostname.match(/^db\.([a-z0-9]+)\.supabase\.co$/);
     if (m && (u.port === "5432" || u.port === "")) {
       const ref = m[1];
       u.hostname = "aws-1-ap-south-1.pooler.supabase.com";
-      u.port = "5432";
+      u.port = isVercel ? "6543" : "5432";
       if (!u.username.includes(".")) {
         u.username = `${u.username}.${ref}`;
       }
-      console.log(`[prisma] ✅ Rewrote direct URL → session pooler (ref=${ref})`);
+      if (isVercel) u.searchParams.set("pgbouncer", "true");
+      console.log(`[prisma] Rewrote direct URL → Supavisor ${u.port === "6543" ? "transaction" : "session"} pooler (ref=${ref})`);
+    } else if (isVercel && u.hostname.endsWith(".pooler.supabase.com") && u.port === "5432") {
+      // A session-pooler URL is suitable for persistent backends, but Vercel
+      // functions are transient. Prefer Supavisor transaction mode here.
+      u.port = "6543";
+      u.searchParams.set("pgbouncer", "true");
     }
 
-    // Vercel/serverless safety: keep one DB connection per Prisma client.
+    // Vercel/serverless safety: keep a small per-client pool. Transaction mode
+    // is used above to avoid exhausting Supavisor's session-client limit.
     if (!u.searchParams.has("connection_limit"))
       u.searchParams.set("connection_limit", "1");
     if (!u.searchParams.has("pool_timeout"))
@@ -55,6 +63,10 @@ export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     datasourceUrl: buildUrl(rawUrl),
+    transactionOptions: {
+      maxWait: 10_000,
+      timeout: 15_000,
+    },
     log: process.env.NODE_ENV !== "production" ? ["error"] : [],
   });
 
@@ -72,6 +84,10 @@ export const prismaApp =
   globalForPrismaApp.prismaApp ??
   new PrismaClient({
     datasourceUrl: buildUrl(rawAppUrl),
+    transactionOptions: {
+      maxWait: 10_000,
+      timeout: 15_000,
+    },
     log: process.env.NODE_ENV !== "production" ? ["error"] : [],
   });
 
