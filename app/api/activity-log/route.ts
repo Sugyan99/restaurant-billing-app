@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(req: NextRequest) {
@@ -18,19 +18,19 @@ export async function GET(req: NextRequest) {
     const until = date ? new Date(`${date}T23:59:59.999Z`) : new Date();
 
     const tid = session.tenantId;
-    const [auditRows, billingRows, users] = await Promise.all([
-      prisma.auditLog.findMany({
+    const [auditRows, billingRows, users] = await withTenant(session.tenantId, session.userId, (tx) => Promise.all([
+      tx.auditLog.findMany({
         where: { tenantId: tid, createdAt: { gte: since, lte: until } },
         orderBy: { createdAt: "desc" },
         take: 200,
       }),
-      prisma.billingAuditLog.findMany({
+      tx.billingAuditLog.findMany({
         where: { tenantId: tid, createdAt: { gte: since, lte: until } },
         orderBy: { createdAt: "desc" },
         take: 200,
       }),
-      prisma.user.findMany({ select: { id: true, name: true, role: true } }),
-    ]);
+      tx.user.findMany({ select: { id: true, name: true, role: true } }),
+    ]));
 
     const userMap = new Map(users.map((u) => [u.id, u]));
 

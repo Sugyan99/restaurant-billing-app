@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { hashPassword } from "@/lib/auth";
 import { z } from "zod";
@@ -26,9 +26,9 @@ export async function PUT(
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
 
     // Verify user is a member of this tenant
-    const membership = await prisma.tenantMembership.findFirst({
+    const membership = await withTenant(session.tenantId, session.userId, (tx) => tx.tenantMembership.findFirst({
       where: { userId: id, tenantId: session.tenantId },
-    });
+    }));
     if (!membership) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     if (id === session.userId && parsed.data.isActive === false) {
@@ -43,10 +43,10 @@ export async function PUT(
 
     // Update role in membership too if changed
     if (parsed.data.role) {
-      await prisma.tenantMembership.update({
+      await withTenant(session.tenantId, session.userId, (tx) => tx.tenantMembership.update({
         where: { id: membership.id },
         data: { role: parsed.data.role },
-      });
+      }));
     }
 
     const user = await prisma.user.update({
@@ -71,9 +71,9 @@ export async function DELETE(
     if (id === session.userId) return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400 });
 
     // Verify user belongs to this tenant
-    const membership = await prisma.tenantMembership.findFirst({
+    const membership = await withTenant(session.tenantId, session.userId, (tx) => tx.tenantMembership.findFirst({
       where: { userId: id, tenantId: session.tenantId },
-    });
+    }));
     if (!membership) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     // Soft delete

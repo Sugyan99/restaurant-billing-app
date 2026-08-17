@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(req: NextRequest) {
@@ -8,10 +8,10 @@ export async function GET(req: NextRequest) {
     const session = requireAuth(req);
     if (isAuthError(session)) return session;
 
-    const orders = await prisma.qrOrder.findMany({
+    const orders = await withTenant(session.tenantId, session.userId, (tx) => tx.qrOrder.findMany({
       where: { tenantId: session.tenantId, status: "PENDING" },
       orderBy: { createdAt: "asc" },
-    });
+    }));
 
     return NextResponse.json({ orders });
   });

@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(req: NextRequest) {
@@ -12,22 +12,22 @@ export async function GET(req: NextRequest) {
   if (q.length < 2) return NextResponse.json({ results: [] });
 
   const tid = session.tenantId;
-  const [customers, items, orders] = await Promise.all([
-    prisma.customer.findMany({
+  const [customers, items, orders] = await withTenant(session.tenantId, session.userId, (tx) => Promise.all([
+    tx.customer.findMany({
       where: { tenantId: tid, OR: [{ name: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }] },
       take: 5, select: { id: true, name: true, phone: true },
     }),
-    prisma.menuItem.findMany({
+    tx.menuItem.findMany({
       where: { tenantId: tid, name: { contains: q, mode: "insensitive" } },
       take: 5, select: { id: true, name: true, price: true, isAvailable: true },
     }),
-    prisma.order.findMany({
+    tx.order.findMany({
       where: { tenantId: tid, OR: [{ customerName: { contains: q, mode: "insensitive" } }, { customerPhone: { contains: q } }] },
       take: 5,
       select: { id: true, orderNumber: true, status: true, customerName: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     }),
-  ]);
+  ]));
 
   return NextResponse.json({
     results: [

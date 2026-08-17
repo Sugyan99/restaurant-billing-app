@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { safeHandler } from "@/lib/apiHandler";
 
@@ -15,13 +15,13 @@ export async function GET(req: NextRequest) {
     const end = new Date(year, month, 0, 23, 59, 59);
 
     const tid = session.tenantId;
-    const [inventory, expenses] = await Promise.all([
-      prisma.inventoryItem.findMany({ where: { tenantId: tid }, orderBy: { name: "asc" } }),
-      prisma.expense.findMany({
+    const [inventory, expenses] = await withTenant(session.tenantId, session.userId, (tx) => Promise.all([
+      tx.inventoryItem.findMany({ where: { tenantId: tid }, orderBy: { name: "asc" } }),
+      tx.expense.findMany({
         where: { tenantId: tid, category: "INGREDIENTS", date: { gte: start, lte: end } },
         orderBy: { date: "desc" },
       }),
-    ]);
+    ]));
 
     // Match expenses to inventory items by name (fuzzy)
     const ledger = inventory.map(item => {

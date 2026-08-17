@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { hashPassword } from "@/lib/auth";
 import { z } from "zod";
@@ -18,10 +18,10 @@ export async function GET(req: NextRequest) {
   const session = requireAuth(req, ["OWNER", "MANAGER"]);
   if (isAuthError(session)) return session;
 
-  const memberIds = (await prisma.tenantMembership.findMany({
+  const memberIds = (await withTenant(session.tenantId, session.userId, (tx) => tx.tenantMembership.findMany({
     where: { tenantId: session.tenantId },
     select: { userId: true },
-  })).map(m => m.userId);
+  }))).map(m => m.userId);
 
   const users = await prisma.user.findMany({
     where: { id: { in: memberIds } },
@@ -57,9 +57,9 @@ export async function POST(req: NextRequest) {
     select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, salary: true, createdAt: true },
   });
   // Add to tenant
-  await prisma.tenantMembership.create({
+  await withTenant(session.tenantId, session.userId, (tx) => tx.tenantMembership.create({
     data: { tenantId: session.tenantId, userId: user.id, role, status: "active" },
-  });
+  }));
 
   return NextResponse.json({ user }, { status: 201 });
 });

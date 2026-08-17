@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { safeHandler } from "@/lib/apiHandler";
 
@@ -7,12 +7,12 @@ export async function GET(req: NextRequest) {
   return safeHandler("purchase-orders/GET", async () => {
     const session = requireAuth(req, ["OWNER", "MANAGER"]);
     if (isAuthError(session)) return session;
-    const orders = await prisma.purchaseOrder.findMany({
+    const orders = await withTenant(session.tenantId, session.userId, (tx) => tx.purchaseOrder.findMany({
       where: { tenantId: session.tenantId },
       include: { items: true },
       orderBy: { createdAt: "desc" },
       take: 50,
-    });
+    }));
     return NextResponse.json({ orders });
   });
 }
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const { supplierName, items, notes, expectedAt } = await req.json();
     if (!supplierName || !items?.length) return NextResponse.json({ error: "Supplier and items required" }, { status: 400 });
     const totalAmount = items.reduce((s: number, i: { quantity: number; costPerUnit: number }) => s + i.quantity * i.costPerUnit, 0);
-    const po = await prisma.purchaseOrder.create({
+    const po = await withTenant(session.tenantId, session.userId, (tx) => tx.purchaseOrder.create({
       data: {
         id: `po_${Date.now()}`,
         tenantId: session.tenantId,
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
         },
       },
       include: { items: true },
-    });
+    }));
     return NextResponse.json({ order: po }, { status: 201 });
   });
 }
