@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { Prisma } from "@prisma/client";
 
+// Prisma $queryRaw returns count(*) as BigInt — serialize to Number globally
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(BigInt.prototype as any).toJSON = function () { return Number(this); };
+
 // P1001 = Can't reach DB   P1002 = Timeout   P1008 = Query timeout   P1017 = Server closed connection
 const RETRYABLE_CODES = new Set(["P1001", "P1002", "P1008", "P1017"]);
 
