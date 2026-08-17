@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (qrOrder.feedback) return NextResponse.json({ error: "Feedback already submitted" }, { status: 409 });
 
     const feedback = await prisma.qrFeedback.create({
-      data: { qrOrderId, rating, comment: comment ?? null },
+      data: { qrOrderId, tenantId: qrOrder.tenantId, rating, comment: comment ?? null },
     });
 
     return NextResponse.json({ feedback }, { status: 201 });
