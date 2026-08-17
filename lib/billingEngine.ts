@@ -168,16 +168,18 @@ export async function getGSTRates(tx: Tx): Promise<{ cgstPercent: number; sgstPe
  * Upsert: safe to call multiple times (live recalculation on each cart change).
  */
 export async function saveDraft(
-  prisma: PrismaClient,
+  tx: Tx,
   orderId: string,
   cart: Cart,
-  calc: BillCalculation
+  calc: BillCalculation,
+  tenantId?: string
 ): Promise<void> {
-  await prisma.invoiceDraft.upsert({
+  await tx.invoiceDraft.upsert({
     where: { orderId },
     create: {
       id: `draft_${orderId}`,
       orderId,
+      ...(tenantId && { tenantId }),
       cartSnapshot: cart.items as any,
       discount: calc.discount,
       cgstPercent: calc.cgstPercent,
@@ -196,8 +198,8 @@ export async function saveDraft(
 }
 
 /** Retrieve draft for crash recovery. Returns null if no draft exists. */
-export async function getDraft(prisma: PrismaClient, orderId: string) {
-  return prisma.invoiceDraft.findUnique({ where: { orderId } });
+export async function getDraft(tx: Tx, orderId: string) {
+  return tx.invoiceDraft.findUnique({ where: { orderId } });
 }
 
 /** Delete draft after successful invoice creation. */
@@ -240,11 +242,12 @@ export async function auditLog(
  * 5. On any failure: lock released, draft preserved for recovery
  */
 export async function createInvoice(
-  prisma: PrismaClient,
+  tx: Tx,
   orderId: string,
   calc: BillCalculation,
   cart: Cart,
-  userId?: string
+  userId?: string,
+  tenantId?: string
 ): Promise<{ bill: Awaited<ReturnType<typeof createBillInTx>>; created: boolean }> {
   // 1. Double-click protection
   if (!acquireLock(orderId)) {
@@ -252,40 +255,37 @@ export async function createInvoice(
   }
 
   try {
-    // 2. Autosave draft before any DB write
-    await saveDraft(prisma, orderId, cart, calc);
+    // 2. Autosave draft before commit
+    await saveDraft(tx, orderId, cart, calc, tenantId);
 
-    // 3. Atomic transaction
-    const bill = await prisma.$transaction(async (tx) => {
-      // a. Check for existing bill (idempotent return)
-      const existing = await tx.bill.findUnique({ where: { orderId } });
-      if (existing) return tx.bill.findUniqueOrThrow({
-        where: { orderId },
-        include: { order: { include: { items: { include: { menuItem: true } }, table: true } } },
-      });
+    // a. Check for existing bill (idempotent return)
+    const existing = await tx.bill.findUnique({ where: { orderId } });
+    if (existing) {
+      return {
+        bill: await tx.bill.findUniqueOrThrow({
+          where: { orderId },
+          include: { order: { include: { items: { include: { menuItem: true } }, table: true } } },
+        }),
+        created: false,
+      };
+    }
 
-      // b. Upsert (atomic — no race between check and create)
-      const created = await createBillInTx(tx, orderId, calc);
+    // b. Upsert (atomic — no race between check and create)
+    const created = await createBillInTx(tx, orderId, calc, tenantId);
 
-      // c. Clear draft — bill is now the source of truth
-      await clearDraft(tx, orderId);
+    // c. Clear draft — bill is now the source of truth
+    await clearDraft(tx, orderId);
 
-      // d. Audit log
-      await auditLog(tx, "BILL_CREATED", orderId, userId ?? "system", {
-        orderId,
-        subtotal: calc.subtotal,
-        discount: calc.discount,
-        total: calc.total,
-      });
-
-      return created;
+    // d. Audit log
+    await auditLog(tx, "BILL_CREATED", orderId, userId ?? "system", {
+      orderId,
+      subtotal: calc.subtotal,
+      discount: calc.discount,
+      total: calc.total,
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return { bill: bill as any, created: true };
-  } catch (err) {
-    // Draft preserved on failure — crash recovery possible
-    throw err;
+    return { bill: created as any, created: true };
   } finally {
     // 4. Always release lock
     releaseLock(orderId);

@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
 import { calculateBill, createInvoice, cartMergeDuplicates, getGSTRates } from "@/lib/billingEngine";
@@ -28,11 +28,11 @@ export async function GET(req: NextRequest) {
       } : {}),
     };
 
-    const bills = await prisma.bill.findMany({
+    const bills = await withTenant(session.tenantId, session.userId, (tx) => tx.bill.findMany({
       where,
       include: { order: { include: { items: { include: { menuItem: true } }, table: true, customer: true, createdBy: { select: { name: true, role: true } } } } },
       orderBy: { createdAt: "desc" },
-    });
+    }));
 
     return NextResponse.json({ bills });
   });
@@ -51,44 +51,46 @@ export async function POST(req: NextRequest) {
 
     const { orderId, discount = 0 } = parsed.data;
 
-    const order = await prisma.order.findUnique({
-      where: { id: orderId, tenantId: session.tenantId },
-      include: { items: { include: { menuItem: { select: { name: true } } } } },
-    });
-    if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-
-    // Build cart from order items for draft/audit
-    const cart = cartMergeDuplicates({
-      items: order.items.map(i => ({
-        menuItemId: i.menuItemId,
-        name: i.menuItem?.name ?? i.menuItemId,
-        price: i.price,
-        quantity: i.quantity,
-      })),
-    });
-
-    // Get GST rates for calculation
-    const { cgstPercent, sgstPercent, taxConfig } = await getGSTRates(prisma as any);
-    const itemsTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
-    const calc = calculateBill(itemsTotal, discount, cgstPercent, sgstPercent, taxConfig);
-
-    // Discount approval: CASHIER + discount > 10% → requires manager approval
-    const DISCOUNT_APPROVAL_THRESHOLD = 10; // percent
-    const discountPercent = calc.subtotal > 0 ? (calc.discount / calc.subtotal) * 100 : 0;
-    const needsApproval = session.role === "CASHIER" && discountPercent > DISCOUNT_APPROVAL_THRESHOLD;
-
-    // createInvoice: lock + draft + atomic tx + audit log
-    const { bill } = await createInvoice(prisma, orderId, calc, cart, session.userId);
-
-    // Set approval status if needed (post-creation update, outside lock)
-    if (needsApproval) {
-      await (prisma.bill as any).update({
-        where: { id: bill.id },
-        data: { discountApprovalStatus: "PENDING" },
+    return withTenant(session.tenantId, session.userId, async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId, tenantId: session.tenantId },
+        include: { items: { include: { menuItem: { select: { name: true } } } } },
       });
-      return NextResponse.json({ bill: { ...bill, discountApprovalStatus: "PENDING" }, approvalRequired: true }, { status: 201 });
-    }
+      if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
-    return NextResponse.json({ bill }, { status: 201 });
+      // Build cart from order items for draft/audit
+      const cart = cartMergeDuplicates({
+        items: order.items.map(i => ({
+          menuItemId: i.menuItemId,
+          name: i.menuItem?.name ?? i.menuItemId,
+          price: i.price,
+          quantity: i.quantity,
+        })),
+      });
+
+      // Get GST rates for calculation
+      const { cgstPercent, sgstPercent, taxConfig } = await getGSTRates(tx);
+      const itemsTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
+      const calc = calculateBill(itemsTotal, discount, cgstPercent, sgstPercent, taxConfig);
+
+      // Discount approval: CASHIER + discount > 10% → requires manager approval
+      const DISCOUNT_APPROVAL_THRESHOLD = 10; // percent
+      const discountPercent = calc.subtotal > 0 ? (calc.discount / calc.subtotal) * 100 : 0;
+      const needsApproval = session.role === "CASHIER" && discountPercent > DISCOUNT_APPROVAL_THRESHOLD;
+
+      // createInvoice: draft + duplicate check + audit log, all within this tx
+      const { bill } = await createInvoice(tx, orderId, calc, cart, session.userId, session.tenantId);
+
+      // Set approval status if needed
+      if (needsApproval) {
+        await (tx.bill as any).update({
+          where: { id: bill.id },
+          data: { discountApprovalStatus: "PENDING" },
+        });
+        return NextResponse.json({ bill: { ...bill, discountApprovalStatus: "PENDING" }, approvalRequired: true }, { status: 201 });
+      }
+
+      return NextResponse.json({ bill }, { status: 201 });
+    });
   });
 }
