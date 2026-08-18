@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(req: NextRequest) {
@@ -16,11 +16,11 @@ export async function GET(req: NextRequest) {
   const end = new Date(year, month, 0, 23, 59, 59);
 
   const tid = session.tenantId;
-  const [bills, expenses, dayCloses] = await Promise.all([
-    prisma.bill.findMany({ where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: start, lte: end } } }),
-    prisma.expense.findMany({ where: { tenantId: tid, date: { gte: start, lte: end } } }),
-    prisma.dayClose.findMany({ where: { tenantId: tid, date: { gte: start, lte: end } }, orderBy: { date: "asc" } }),
-  ]);
+  const [bills, expenses, dayCloses] = await withTenant(session.tenantId, session.userId, (tx) => Promise.all([
+    tx.bill.findMany({ where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: start, lte: end } } }),
+    tx.expense.findMany({ where: { tenantId: tid, date: { gte: start, lte: end } } }),
+    tx.dayClose.findMany({ where: { tenantId: tid, date: { gte: start, lte: end } }, orderBy: { date: "asc" } }),
+  ]));
 
   const revenue = bills.reduce((s, b) => s + b.total, 0);
   const tax = bills.reduce((s, b) => s + b.cgst + b.sgst, 0);

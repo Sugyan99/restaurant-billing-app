@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(req: NextRequest) {
@@ -16,13 +16,15 @@ export async function GET(req: NextRequest) {
   const end = new Date(year, month, 0, 23, 59, 59);
 
   const tid = session.tenantId;
-  const bills = await prisma.bill.findMany({
-    where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: start, lte: end } },
-    include: { order: { include: { items: { include: { menuItem: true } } } } },
-    orderBy: { createdAt: "asc" },
+  const { bills, settings } = await withTenant(session.tenantId, session.userId, async (tx) => {
+    const bills = await tx.bill.findMany({
+      where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: start, lte: end } },
+      include: { order: { include: { items: { include: { menuItem: true } } } } },
+      orderBy: { createdAt: "asc" },
+    });
+    const settings = await tx.settings.findFirst({ where: { tenantId: tid } });
+    return { bills, settings };
   });
-
-  const settings = await prisma.settings.findFirst({ where: { tenantId: tid } });
 
   const totalTaxable = bills.reduce((s, b) => s + (b.subtotal - b.discount), 0);
   const totalCgst = bills.reduce((s, b) => s + b.cgst, 0);

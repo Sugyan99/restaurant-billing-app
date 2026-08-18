@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(req: NextRequest) {
@@ -14,10 +14,10 @@ export async function GET(req: NextRequest) {
     since.setDate(now.getDate() - 29);
     since.setHours(0, 0, 0, 0);
 
-    const bills = await prisma.bill.findMany({
+    const bills = await withTenant(session.tenantId, session.userId, (tx) => tx.bill.findMany({
       where: { tenantId: session.tenantId, paymentStatus: "PAID", createdAt: { gte: since } },
       select: { total: true, createdAt: true },
-    });
+    }));
 
     // Build daily revenue map
     const dailyMap: Record<string, { revenue: number; orders: number }> = {};

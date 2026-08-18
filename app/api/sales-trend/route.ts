@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 export async function GET(req: NextRequest) {
@@ -11,24 +11,28 @@ export async function GET(req: NextRequest) {
   const now = new Date();
 
   const tid = session.tenantId;
-  // Last 7 days daily revenue
-  const days: { date: string; revenue: number; orders: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    d.setHours(0, 0, 0, 0);
-    const next = new Date(d); next.setDate(d.getDate() + 1);
-    const bills = await prisma.bill.findMany({ where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: d, lt: next } } });
-    days.push({
-      date: d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric" }),
-      revenue: parseFloat(bills.reduce((s, b) => s + b.total, 0).toFixed(2)),
-      orders: bills.length,
-    });
-  }
 
-  // Today hourly breakdown
-  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-  const todayBills = await prisma.bill.findMany({ where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: todayStart } } });
+  const { days, todayBills } = await withTenant(session.tenantId, session.userId, async (tx) => {
+    // Last 7 days daily revenue
+    const days: { date: string; revenue: number; orders: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const next = new Date(d); next.setDate(d.getDate() + 1);
+      const bills = await tx.bill.findMany({ where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: d, lt: next } } });
+      days.push({
+        date: d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric" }),
+        revenue: parseFloat(bills.reduce((s, b) => s + b.total, 0).toFixed(2)),
+        orders: bills.length,
+      });
+    }
+
+    // Today hourly breakdown
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const todayBills = await tx.bill.findMany({ where: { tenantId: tid, paymentStatus: "PAID", createdAt: { gte: todayStart } } });
+    return { days, todayBills };
+  });
   const hourly: Record<number, number> = {};
   for (const bill of todayBills) {
     const h = new Date(bill.createdAt).getHours();

@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 
 const POINTS_PER_RUPEE = 1;          // 1 point per ₹1 spent
@@ -22,20 +22,20 @@ export async function GET(req: NextRequest) {
     const phone = searchParams.get("phone");
 
     if (phone) {
-      const customer = await prisma.customer.findFirst({
+      const customer = await withTenant(session.tenantId, session.userId, (tx) => tx.customer.findFirst({
         where: { phone, tenantId: session.tenantId },
         select: { id: true, name: true, phone: true, loyaltyPoints: true, totalSpent: true, totalVisits: true },
-      });
+      }));
       if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
       return NextResponse.json({ customer: { ...customer, tier: tier(customer.loyaltyPoints), redeemableAmount: parseFloat((customer.loyaltyPoints * RUPEE_PER_POINTS).toFixed(2)) } });
     }
 
-    const customers = await prisma.customer.findMany({
-      where: { loyaltyPoints: { gt: 0 } },
+    const customers = await withTenant(session.tenantId, session.userId, (tx) => tx.customer.findMany({
+      where: { tenantId: session.tenantId, loyaltyPoints: { gt: 0 } },
       select: { id: true, name: true, phone: true, loyaltyPoints: true, totalSpent: true, totalVisits: true },
       orderBy: { loyaltyPoints: "desc" },
       take: 100,
-    });
+    }));
     return NextResponse.json({ customers: customers.map(c => ({ ...c, tier: tier(c.loyaltyPoints) })) });
   });
 }
@@ -49,19 +49,22 @@ export async function POST(req: NextRequest) {
     const { phone, points } = await req.json();
     if (!phone || !points || points <= 0) return NextResponse.json({ error: "Phone and valid points required" }, { status: 400 });
 
-    const customer = await prisma.customer.findFirst({ where: { phone, tenantId: session.tenantId } });
-    if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
-    if (customer.loyaltyPoints < points) {
-      return NextResponse.json({ error: `Only ${customer.loyaltyPoints} points available` }, { status: 400 });
-    }
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const customer = await tx.customer.findFirst({ where: { phone, tenantId: session.tenantId } });
+      if (!customer) return { notFound: true } as const;
+      if (customer.loyaltyPoints < points) return { insufficient: customer.loyaltyPoints } as const;
 
-    const discount = parseFloat((points * RUPEE_PER_POINTS).toFixed(2));
-    const updated  = await prisma.customer.update({
-      where: { id: customer.id },
-      data:  { loyaltyPoints: { decrement: points } },
+      const discount = parseFloat((points * RUPEE_PER_POINTS).toFixed(2));
+      const updated = await tx.customer.update({
+        where: { id: customer.id },
+        data: { loyaltyPoints: { decrement: points } },
+      });
+      return { discount, remainingPoints: updated.loyaltyPoints } as const;
     });
 
-    return NextResponse.json({ discount, remainingPoints: updated.loyaltyPoints, message: `${points} pts redeemed = ₹${discount} off` });
+    if ("notFound" in result) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    if ("insufficient" in result) return NextResponse.json({ error: `Only ${result.insufficient} points available` }, { status: 400 });
+    return NextResponse.json({ discount: result.discount, remainingPoints: result.remainingPoints, message: `${points} pts redeemed = ₹${result.discount} off` });
   });
 }
 
@@ -74,26 +77,30 @@ export async function PUT(req: NextRequest) {
     const { phone, points, reason } = await req.json();
     if (!phone || !points || points <= 0) return NextResponse.json({ error: "Phone and valid points required" }, { status: 400 });
 
-    const customer = await prisma.customer.findFirst({ where: { phone, tenantId: session.tenantId } });
-    if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const customer = await tx.customer.findFirst({ where: { phone, tenantId: session.tenantId } });
+      if (!customer) return { notFound: true } as const;
 
-    const updated = await prisma.customer.update({
-      where: { id: customer.id },
-      data:  { loyaltyPoints: { increment: Math.round(points) } },
+      const updated = await tx.customer.update({
+        where: { id: customer.id },
+        data: { loyaltyPoints: { increment: Math.round(points) } },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          tenantId: session.tenantId,
+          action: "ADD_LOYALTY_POINTS",
+          entity: "Customer",
+          entityId: customer.id,
+          userId: session.userId,
+          meta: { points: Math.round(points), reason: reason ?? "Manual adjustment", newBalance: updated.loyaltyPoints } as never,
+        },
+      });
+      return { loyaltyPoints: updated.loyaltyPoints } as const;
     });
 
-    // Audit log
-    await prisma.auditLog.create({
-      data: {
-        action:   "ADD_LOYALTY_POINTS",
-        entity:   "Customer",
-        entityId: customer.id,
-        userId:   session.userId,
-        meta:     { points: Math.round(points), reason: reason ?? "Manual adjustment", newBalance: updated.loyaltyPoints },
-      },
-    });
-
-    return NextResponse.json({ loyaltyPoints: updated.loyaltyPoints, added: Math.round(points) });
+    if ("notFound" in result) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    return NextResponse.json({ loyaltyPoints: result.loyaltyPoints, added: Math.round(points) });
   });
 }
 

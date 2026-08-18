@@ -1,6 +1,6 @@
 import { safeHandler } from "@/lib/apiHandler";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { z } from "zod";
 
@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get("category");
     const rating = searchParams.get("rating");
 
-    const [feedback, stats, dist] = await Promise.all([
-      prisma.customerFeedback.findMany({
+    const [feedback, stats, dist] = await withTenant(session.tenantId, session.userId, (tx) => Promise.all([
+      tx.customerFeedback.findMany({
         where: {
           tenantId: tid,
           ...(category ? { category } : {}),
@@ -34,18 +34,18 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         take: 100,
       }),
-      prisma.customerFeedback.aggregate({
+      tx.customerFeedback.aggregate({
         where: { tenantId: tid },
         _avg: { rating: true },
         _count: { id: true },
       }),
-      prisma.customerFeedback.groupBy({
+      tx.customerFeedback.groupBy({
         by: ["rating"],
         where: { tenantId: tid },
         _count: { id: true },
         orderBy: { rating: "desc" },
       }),
-    ]);
+    ]));
 
     return NextResponse.json({ feedback, stats, distribution: dist });
   });
@@ -63,25 +63,26 @@ export async function POST(req: NextRequest) {
 
     const { customerPhone, customerName, rating, comment, category, orderId } = parsed.data;
 
-    let customerId: string | null = null;
-    if (customerPhone) {
-      const c = await prisma.customer.findFirst({
-        where: { phone: customerPhone, tenantId: session.tenantId },
+    const feedback = await withTenant(session.tenantId, session.userId, async (tx) => {
+      let customerId: string | null = null;
+      if (customerPhone) {
+        const c = await tx.customer.findFirst({
+          where: { phone: customerPhone, tenantId: session.tenantId },
+        });
+        if (c) customerId = c.id;
+      }
+      return tx.customerFeedback.create({
+        data: {
+          tenantId: session.tenantId,
+          customerId,
+          customerPhone: customerPhone || null,
+          customerName: customerName || null,
+          rating,
+          comment: comment || null,
+          category,
+          orderId: orderId || null,
+        },
       });
-      if (c) customerId = c.id;
-    }
-
-    const feedback = await prisma.customerFeedback.create({
-      data: {
-        tenantId: session.tenantId,
-        customerId,
-        customerPhone: customerPhone || null,
-        customerName: customerName || null,
-        rating,
-        comment: comment || null,
-        category,
-        orderId: orderId || null,
-      },
     });
     return NextResponse.json({ feedback }, { status: 201 });
   });

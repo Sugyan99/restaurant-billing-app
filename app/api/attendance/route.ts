@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { safeHandler } from "@/lib/apiHandler";
 import { z } from "zod";
@@ -32,11 +32,11 @@ export async function GET(req: NextRequest) {
       const [year, m] = month.split("-").map(Number);
       const start = new Date(year, m - 1, 1);
       const end   = new Date(year, m, 1);
-      const records = await prisma.attendance.findMany({
+      const records = await withTenant(session.tenantId, session.userId, (tx) => tx.attendance.findMany({
         where: { tenantId: tid, ...(userId ? { userId } : {}), date: { gte: start, lt: end } },
         include: { user: { select: { id: true, name: true, role: true } } },
         orderBy: [{ date: "desc" }, { clockIn: "desc" }],
-      });
+      }));
       return NextResponse.json({ records });
     }
 
@@ -44,24 +44,26 @@ export async function GET(req: NextRequest) {
     date.setHours(0, 0, 0, 0);
     const nextDay = new Date(date); nextDay.setDate(date.getDate() + 1);
 
-    // Also get all active users for this tenant
-    const memberIds = (await prisma.tenantMembership.findMany({
-      where: { tenantId: tid, status: "active" },
-      select: { userId: true },
-    })).map(m => m.userId);
+    const [records, users] = await withTenant(session.tenantId, session.userId, async (tx) => {
+      // Also get all active users for this tenant
+      const memberIds = (await tx.tenantMembership.findMany({
+        where: { tenantId: tid, status: "active" },
+        select: { userId: true },
+      })).map(m => m.userId);
 
-    const [records, users] = await Promise.all([
-      prisma.attendance.findMany({
-        where: { tenantId: tid, date: { gte: date, lt: nextDay } },
-        include: { user: { select: { id: true, name: true, role: true } } },
-        orderBy: { clockIn: "asc" },
-      }),
-      prisma.user.findMany({
-        where: { id: { in: memberIds }, isActive: true },
-        select: { id: true, name: true, role: true },
-        orderBy: { name: "asc" },
-      }),
-    ]);
+      return Promise.all([
+        tx.attendance.findMany({
+          where: { tenantId: tid, date: { gte: date, lt: nextDay } },
+          include: { user: { select: { id: true, name: true, role: true } } },
+          orderBy: { clockIn: "asc" },
+        }),
+        tx.user.findMany({
+          where: { id: { in: memberIds }, isActive: true },
+          select: { id: true, name: true, role: true },
+          orderBy: { name: "asc" },
+        }),
+      ]);
+    });
 
     return NextResponse.json({ records, users, date: date.toISOString() });
   });
@@ -81,31 +83,37 @@ export async function POST(req: NextRequest) {
       ? parsed.data.userId
       : session.userId;
 
-    // Verify user is in this tenant
-    const membership = await prisma.tenantMembership.findFirst({ where: { tenantId: tid, userId, status: "active" } });
-    if (!membership) return NextResponse.json({ error: "User not found in this restaurant" }, { status: 404 });
-
-    // Check already clocked in today
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const existing = await prisma.attendance.findFirst({
-      where: { tenantId: tid, userId, date: today, clockOut: null },
-    });
-    if (existing) return NextResponse.json({ error: "Already clocked in", attendance: existing }, { status: 409 });
-
     const now = new Date();
-    const attendance = await prisma.attendance.create({
-      data: {
-        id: `att_${Date.now()}`,
-        tenantId: tid,
-        userId,
-        clockIn: now,
-        date: today,
-        note: parsed.data.note ?? null,
-      },
-      include: { user: { select: { id: true, name: true, role: true } } },
+
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      // Verify user is in this tenant
+      const membership = await tx.tenantMembership.findFirst({ where: { tenantId: tid, userId, status: "active" } });
+      if (!membership) return { notMember: true } as const;
+
+      // Check already clocked in today
+      const existing = await tx.attendance.findFirst({
+        where: { tenantId: tid, userId, date: today, clockOut: null },
+      });
+      if (existing) return { alreadyIn: existing } as const;
+
+      const attendance = await tx.attendance.create({
+        data: {
+          id: `att_${Date.now()}`,
+          tenantId: tid,
+          userId,
+          clockIn: now,
+          date: today,
+          note: parsed.data.note ?? null,
+        },
+        include: { user: { select: { id: true, name: true, role: true } } },
+      });
+      return { attendance } as const;
     });
 
-    return NextResponse.json({ attendance }, { status: 201 });
+    if ("notMember" in result) return NextResponse.json({ error: "User not found in this restaurant" }, { status: 404 });
+    if ("alreadyIn" in result) return NextResponse.json({ error: "Already clocked in", attendance: result.alreadyIn }, { status: 409 });
+    return NextResponse.json({ attendance: result.attendance }, { status: 201 });
   });
 }
 
@@ -119,29 +127,32 @@ export async function PUT(req: NextRequest) {
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
 
     const tid = session.tenantId;
-    const record = await prisma.attendance.findFirst({
-      where: { id: parsed.data.attendanceId, tenantId: tid },
-    });
-    if (!record) return NextResponse.json({ error: "Attendance record not found" }, { status: 404 });
-
-    // Only self or manager can clock out
-    const isManager = ["OWNER","MANAGER"].includes(session.role);
-    if (record.userId !== session.userId && !isManager) {
-      return NextResponse.json({ error: "Cannot clock out another user" }, { status: 403 });
-    }
-
-    if (record.clockOut) return NextResponse.json({ error: "Already clocked out" }, { status: 409 });
-
     const now = new Date();
-    const updated = await prisma.attendance.update({
-      where: { id: record.id },
-      data: { clockOut: now, breakMins: parsed.data.breakMins, note: parsed.data.note ?? record.note },
-      include: { user: { select: { id: true, name: true, role: true } } },
+
+    const result = await withTenant(session.tenantId, session.userId, async (tx) => {
+      const record = await tx.attendance.findFirst({
+        where: { id: parsed.data.attendanceId, tenantId: tid },
+      });
+      if (!record) return { notFound: true } as const;
+
+      const isManager = ["OWNER","MANAGER"].includes(session.role);
+      if (record.userId !== session.userId && !isManager) return { forbidden: true } as const;
+      if (record.clockOut) return { alreadyOut: true } as const;
+
+      const updated = await tx.attendance.update({
+        where: { id: record.id },
+        data: { clockOut: now, breakMins: parsed.data.breakMins, note: parsed.data.note ?? record.note },
+        include: { user: { select: { id: true, name: true, role: true } } },
+      });
+
+      const totalMins = Math.floor((now.getTime() - record.clockIn.getTime()) / 60000);
+      const workedMins = Math.max(0, totalMins - parsed.data.breakMins);
+      return { updated, workedHours: (workedMins / 60).toFixed(2) } as const;
     });
 
-    const totalMins = Math.floor((now.getTime() - record.clockIn.getTime()) / 60000);
-    const workedMins = Math.max(0, totalMins - parsed.data.breakMins);
-
-    return NextResponse.json({ attendance: updated, workedHours: (workedMins / 60).toFixed(2) });
+    if ("notFound" in result) return NextResponse.json({ error: "Attendance record not found" }, { status: 404 });
+    if ("forbidden" in result) return NextResponse.json({ error: "Cannot clock out another user" }, { status: 403 });
+    if ("alreadyOut" in result) return NextResponse.json({ error: "Already clocked out" }, { status: 409 });
+    return NextResponse.json({ attendance: result.updated, workedHours: result.workedHours });
   });
 }

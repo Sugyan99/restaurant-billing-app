@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/requireAuth";
 import { safeHandler } from "@/lib/apiHandler";
 
@@ -9,14 +9,14 @@ export async function GET(req: NextRequest) {
     if (isAuthError(session)) return session;
     const tid = session.tenantId;
 
-    const [orders, bills, expenses, customers, reservations, dayCloses] = await Promise.all([
-      prisma.order.count({ where: { tenantId: tid } }),
-      prisma.bill.count({ where: { tenantId: tid } }),
-      prisma.expense.count({ where: { tenantId: tid } }),
-      prisma.customer.count({ where: { tenantId: tid } }),
-      prisma.reservation.count({ where: { tenantId: tid } }),
-      prisma.dayClose.count({ where: { tenantId: tid } }),
-    ]);
+    const [orders, bills, expenses, customers, reservations, dayCloses] = await withTenant(session.tenantId, session.userId, (tx) => Promise.all([
+      tx.order.count({ where: { tenantId: tid } }),
+      tx.bill.count({ where: { tenantId: tid } }),
+      tx.expense.count({ where: { tenantId: tid } }),
+      tx.customer.count({ where: { tenantId: tid } }),
+      tx.reservation.count({ where: { tenantId: tid } }),
+      tx.dayClose.count({ where: { tenantId: tid } }),
+    ]));
 
     return NextResponse.json({ counts: { orders, bills, expenses, customers, reservations, dayCloses } });
   });
@@ -32,31 +32,33 @@ export async function DELETE(req: NextRequest) {
     if (!type || !before) return NextResponse.json({ error: "Type and before date required" }, { status: 400 });
 
     const beforeDate = new Date(before);
-    let deleted = 0;
 
-    if (type === "orders") {
-      const orders = await prisma.order.findMany({
-        where: { tenantId: tid, createdAt: { lt: beforeDate }, status: { in: ["SERVED", "CANCELLED"] } },
-        select: { id: true },
-      });
-      const ids = orders.map(o => o.id);
-      if (ids.length) {
-        await prisma.bill.deleteMany({ where: { tenantId: tid, orderId: { in: ids } } });
-        const r = await prisma.order.deleteMany({ where: { tenantId: tid, id: { in: ids } } });
-        deleted = r.count;
-      }
-    } else if (type === "expenses") {
-      const r = await prisma.expense.deleteMany({ where: { tenantId: tid, date: { lt: beforeDate } } });
-      deleted = r.count;
-    } else if (type === "reservations") {
-      const r = await prisma.reservation.deleteMany({ where: { tenantId: tid, date: { lt: beforeDate }, status: { in: ["CANCELLED", "NO_SHOW"] } } });
-      deleted = r.count;
-    } else if (type === "dayCloses") {
-      const r = await prisma.dayClose.deleteMany({ where: { tenantId: tid, date: { lt: beforeDate } } });
-      deleted = r.count;
-    } else {
+    if (!["orders", "expenses", "reservations", "dayCloses"].includes(type)) {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });
     }
+
+    const deleted = await withTenant(session.tenantId, session.userId, async (tx) => {
+      if (type === "orders") {
+        const orders = await tx.order.findMany({
+          where: { tenantId: tid, createdAt: { lt: beforeDate }, status: { in: ["SERVED", "CANCELLED"] } },
+          select: { id: true },
+        });
+        const ids = orders.map(o => o.id);
+        if (!ids.length) return 0;
+        await tx.bill.deleteMany({ where: { tenantId: tid, orderId: { in: ids } } });
+        const r = await tx.order.deleteMany({ where: { tenantId: tid, id: { in: ids } } });
+        return r.count;
+      } else if (type === "expenses") {
+        const r = await tx.expense.deleteMany({ where: { tenantId: tid, date: { lt: beforeDate } } });
+        return r.count;
+      } else if (type === "reservations") {
+        const r = await tx.reservation.deleteMany({ where: { tenantId: tid, date: { lt: beforeDate }, status: { in: ["CANCELLED", "NO_SHOW"] } } });
+        return r.count;
+      } else {
+        const r = await tx.dayClose.deleteMany({ where: { tenantId: tid, date: { lt: beforeDate } } });
+        return r.count;
+      }
+    });
 
     return NextResponse.json({ deleted, type });
   });
