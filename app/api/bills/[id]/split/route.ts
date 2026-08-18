@@ -54,7 +54,7 @@ export async function POST(
         data: { paymentMode: primaryMode, paymentStatus, splitPayments: payments as any, tip, roundOff, total: finalTotal, paidAmount: totalPaid },
         include: { order: { include: { table: true } } },
       });
-      await auditLog(tx as any, "BILL_SPLIT_PAID", paid.orderId, session.userId, { payments, tip, roundOff, total: finalTotal });
+      await auditLog(tx as any, "BILL_SPLIT_PAID", paid.orderId, session.userId, session.tenantId, { payments, tip, roundOff, total: finalTotal });
       if (paymentStatus === "PAID") {
         await finalizePayment(tx as any, {
           orderId: paid.orderId, total: paid.total,

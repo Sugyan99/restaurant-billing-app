@@ -32,7 +32,7 @@ export async function POST(
       if (bill.order.tableId) {
         await tx.restaurantTable.update({ where: { id: bill.order.tableId }, data: { status: "OCCUPIED" } });
       }
-      await auditLog(tx as any, "BILL_VOIDED", bill.orderId, session.userId, { reason: parsed.data.reason });
+      await auditLog(tx as any, "BILL_VOIDED", bill.orderId, session.userId, session.tenantId, { reason: parsed.data.reason });
       return NextResponse.json({ success: true });
     });
   });

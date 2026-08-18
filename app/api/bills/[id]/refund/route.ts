@@ -52,7 +52,7 @@ export async function POST(
           });
         }
       }
-      await auditLog(tx as any, "BILL_REFUNDED", bill.orderId, session.userId, { refundAmount, reason: parsed.data.reason });
+      await auditLog(tx as any, "BILL_REFUNDED", bill.orderId, session.userId, session.tenantId, { refundAmount, reason: parsed.data.reason });
       return NextResponse.json({ success: true });
     });
   });

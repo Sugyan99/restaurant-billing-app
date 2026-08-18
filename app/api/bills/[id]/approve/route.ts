@@ -35,7 +35,7 @@ export async function POST(
       }
 
       await (tx.bill as any).update({ where: { id }, data: updateData });
-      await auditLog(tx as any, `DISCOUNT_${parsed.data.action}ED`, bill.orderId, session.userId, {
+      await auditLog(tx as any, `DISCOUNT_${parsed.data.action}ED`, bill.orderId, session.userId, session.tenantId, {
         discount: bill.discount, action: parsed.data.action,
       });
       return NextResponse.json({ success: true });
