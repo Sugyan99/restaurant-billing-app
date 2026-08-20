@@ -1,300 +1,203 @@
 "use client";
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { ToastContainer } from "@/components/Toast";
-import { AIAssistant } from "@/components/AIAssistant";
-import NotificationBadge from "@/components/NotificationBadge";
+import Link from "next/link";
 
-const NAV: { title: string; items: { href: string; icon: string; label: string; badge?: boolean }[] }[] = [
-  {
-    title: "Operations",
-    items: [
-      { href: "/dashboard/home",           icon: "🏠", label: "Dashboard" },
-      { href: "/dashboard/tables",         icon: "🪑", label: "Tables & POS" },
-      { href: "/dashboard/orders",         icon: "🍳", label: "Kitchen / KOT", badge: true },
-      { href: "/dashboard/kitchen",        icon: "👨‍🍳", label: "Kitchen Display" },
-      { href: "/dashboard/bills",          icon: "🧾", label: "Bills & Payments" },
-      { href: "/dashboard/qr-orders",       icon: "📱", label: "QR Orders",         badge: true },
-      { href: "/dashboard/delivery",       icon: "🛵", label: "Delivery & Takeaway" },
-      { href: "/dashboard/reservations",   icon: "📅", label: "Reservations" },
-    ],
-  },
-  {
-    title: "Management",
-    items: [
-      { href: "/dashboard/menu",           icon: "🍽️", label: "Menu & Import" },
-      { href: "/dashboard/inventory",      icon: "📦", label: "Inventory & Stock" },
-      { href: "/dashboard/purchase-orders",icon: "🛒", label: "Purchase Orders" },
-      { href: "/dashboard/customers",      icon: "👤", label: "Customers & Loyalty" },
-      { href: "/dashboard/gift-cards",     icon: "🎁", label: "Gift Cards" },
-      { href: "/dashboard/finance",        icon: "💰", label: "Finance" },
-    ],
-  },
-  {
-    title: "Analytics",
-    items: [
-      { href: "/dashboard/reports",        icon: "📊", label: "Sales Reports" },
-      { href: "/dashboard/gst-report",     icon: "🧾", label: "GST Report" },
-      { href: "/dashboard/staff-report",   icon: "👨‍💼", label: "Staff Performance" },
-      { href: "/dashboard/pnl",            icon: "💹", label: "P&L Statement" },
-      { href: "/dashboard/activity-log",   icon: "📋", label: "Activity Log" },
-    ],
-  },
-  {
-    title: "Admin",
-    items: [
-      { href: "/dashboard/users",          icon: "👥", label: "Staff" },
-      { href: "/dashboard/attendance",     icon: "⏱️",  label: "Attendance" },
-      { href: "/dashboard/permissions",    icon: "🔑", label: "Permissions" },
-      { href: "/dashboard/settings",       icon: "⚙️",  label: "Settings & QR" },
-      { href: "/dashboard/data-management",icon: "🗃️", label: "Data Management" },
-    ],
-  },
+const NAV = [
+  { section:"POS", items:[
+    { href:"/dashboard/home",    label:"Dashboard",  icon:"⊞" },
+    { href:"/dashboard/floor",   label:"Floor View", icon:"◫" },
+    { href:"/dashboard/tables",  label:"Tables",     icon:"▦" },
+    { href:"/dashboard/orders",  label:"Orders",     icon:"◳" },
+    { href:"/dashboard/kitchen", label:"Kitchen",    icon:"◉" },
+    { href:"/dashboard/bills",   label:"Bills",      icon:"◈" },
+  ]},
+  { section:"Menu & Stock", items:[
+    { href:"/dashboard/menu",           label:"Menu Items",     icon:"◐" },
+    { href:"/dashboard/inventory",      label:"Inventory",      icon:"◧" },
+    { href:"/dashboard/purchase-orders",label:"Purchase Orders",icon:"◫" },
+    { href:"/dashboard/stock-ledger",   label:"Stock Ledger",   icon:"◱" },
+    { href:"/dashboard/expenses",       label:"Expenses",       icon:"◎" },
+    { href:"/dashboard/delivery",       label:"Delivery",       icon:"◌" },
+  ]},
+  { section:"Customers", items:[
+    { href:"/dashboard/customers",    label:"Customers",    icon:"◯" },
+    { href:"/dashboard/loyalty",      label:"Loyalty",      icon:"◈" },
+    { href:"/dashboard/reservations", label:"Reservations", icon:"◷" },
+    { href:"/dashboard/gift-cards",   label:"Gift Cards",   icon:"◆" },
+    { href:"/dashboard/discounts",    label:"Discounts",    icon:"◇" },
+  ]},
+  { section:"Reports", items:[
+    { href:"/dashboard/reports",      label:"Reports",      icon:"◭" },
+    { href:"/dashboard/gst-report",   label:"GST Report",   icon:"◮" },
+    { href:"/dashboard/pnl",          label:"P&L",          icon:"◬" },
+    { href:"/dashboard/staff-report", label:"Staff Report", icon:"◫" },
+    { href:"/dashboard/finance",      label:"Finance",      icon:"◉" },
+    { href:"/dashboard/day-close",    label:"Day Close",    icon:"◑" },
+  ]},
+  { section:"Settings", items:[
+    { href:"/dashboard/settings",         label:"Settings",     icon:"◌" },
+    { href:"/dashboard/users",            label:"Users",        icon:"◯" },
+    { href:"/dashboard/permissions",      label:"Permissions",  icon:"◈" },
+    { href:"/dashboard/activity-log",     label:"Activity Log", icon:"◎" },
+    { href:"/dashboard/data-management",  label:"Data Mgmt",    icon:"◧" },
+    { href:"/dashboard/import",           label:"Import",       icon:"◱" },
+    { href:"/dashboard/qr",              label:"QR Codes",     icon:"◫" },
+    { href:"/dashboard/qr-orders",       label:"QR Orders",    icon:"◌" },
+  ]},
 ];
 
-const allNav = NAV.flatMap(g => g.items);
-
-type User = { name: string; role: string };
-type SearchResult = { type: string; label: string; sub: string; id: string };
-
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const router   = useRouter();
-  const [user, setUser]               = useState<User | null>(null);
-  const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
-  const [openSection, setOpenSection] = useState<string>("Operations");
-  const [query, setQuery]             = useState("");
-  const [pendingCount, setPendingCount] = useState<number | undefined>(undefined);
-  const [qrPending, setQrPending]       = useState<number>(0);
-  const [results, setResults]         = useState<SearchResult[]>([]);
-  const [searching, setSearching]     = useState(false);
-  const [notifOpen, setNotifOpen]     = useState(false);
-  const [notifs, setNotifs]           = useState<{id:string;title:string;message:string;type:string;isRead:boolean;createdAt:string}[]>([]);
-  const [unread, setUnread]           = useState(0);
+  const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [user, setUser] = useState<{name?:string;email?:string;role?:string}|null>(null);
 
   useEffect(() => {
-    const active = NAV.find(g => g.items.some(i => pathname.startsWith(i.href)));
-    if (active) setOpenSection(active.title);
-  }, [pathname]);
+    fetch("/api/auth/me")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setUser(d); else router.replace("/login"); })
+      .catch(() => router.replace("/login"));
+  }, [router]);
 
-  useEffect(() => {
-    if (query.length < 2) { setResults([]); return; }
-    const t = setTimeout(async () => {
-      setSearching(true);
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-      const d = await res.json();
-      setResults(d.results ?? []);
-      setSearching(false);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [query]);
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method:"POST" });
+    router.replace("/login");
+  };
 
-  useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(d => {
-      if (!d.user) return;
-      setUser(d.user);
-      if (d.user.role === "OWNER") {
-        setAllowedPages(["*"]);
-      } else {
-        fetch("/api/permissions").then(r => r.json()).then(p => {
-          setAllowedPages(p.permissions?.[d.user.role] ?? []);
-        }).catch(() => setAllowedPages(["home","tables","floor","orders","bills"]));
-      }
-    });
-    const loadBadge = () => {
-      fetch("/api/orders?status=PENDING").then(r => r.json()).then(d => setPendingCount(d.orders?.length ?? 0)).catch(() => setPendingCount(0));
-      fetch("/api/qr/pending").then(r => r.json()).then(d => setQrPending(d.orders?.length ?? 0)).catch(() => setQrPending(0));
-    };
-    const loadNotifs = () => fetch("/api/notifications").then(r => r.json()).then(d => { setNotifs(d.notifications ?? []); setUnread(d.unreadCount ?? 0); }).catch(() => {});
-    loadBadge(); loadNotifs();
-    const iv = setInterval(() => { loadBadge(); loadNotifs(); }, 20000);
-    return () => clearInterval(iv);
-  }, []);
-
-  async function markAllRead() {
-    await fetch("/api/notifications", { method: "PUT" });
-    setUnread(0); setNotifs(prev => prev.map(n => ({ ...n, isRead: true })));
-  }
-
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  }
-
-  function canAccess(href: string) {
-    if (allowedPages.includes("*")) return true;
-    const pageId = href.replace("/dashboard/", "");
-    return allowedPages.includes(pageId);
-  }
-
-  useEffect(() => {
-    if (!user || allowedPages.includes("*")) return;
-    const pageId = pathname.replace("/dashboard/", "").split("/")[0];
-    if (pageId && pageId !== "home" && !allowedPages.includes(pageId)) router.push("/dashboard/home");
-  }, [pathname, allowedPages, user, router]);
-
-  const currentPage = allNav.find(n => pathname.startsWith(n.href));
+  const initials = user?.name?.split(" ").map(n=>n[0]).join("").toUpperCase().slice(0,2) || "RB";
 
   return (
-    <div>
-      <aside className="sidebar" aria-label="Main sidebar">
-        <div className="sidebar-logo">
-          <h1>🍽️ RestoBill</h1>
-          <p>Restaurant POS</p>
+    <div className="dl-root">
+      {/* Mobile overlay */}
+      {mobileOpen && <div className="dl-overlay" onClick={()=>setMobileOpen(false)}/>}
+
+      {/* Sidebar */}
+      <aside className={`dl-sidebar${collapsed?" dl-collapsed":""}${mobileOpen?" dl-mobile-open":""}`}>
+        {/* Logo */}
+        <div className="dl-logo">
+          <div className="dl-logo-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <rect width="24" height="24" rx="7" fill="url(#lg)"/>
+              <path d="M6 8h12M6 12h8M6 16h10" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+              <defs><linearGradient id="lg" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse"><stop stopColor="#6366f1"/><stop offset="1" stopColor="#8b5cf6"/></linearGradient></defs>
+            </svg>
+          </div>
+          {!collapsed && <span className="dl-logo-text">RestoBill</span>}
+          <button className="dl-collapse-btn dl-desktop-only" onClick={()=>setCollapsed(v=>!v)} aria-label="Toggle sidebar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{transform:collapsed?"rotate(180deg)":"none",transition:"transform .25s"}}>
+              <polyline points="15,18 9,12 15,6"/>
+            </svg>
+          </button>
         </div>
 
-        <nav className="sidebar-nav" style={{ overflowY: "auto", flex: 1 }} role="navigation">
-          {NAV.map(group => {
-            const visible = group.items.filter(i => canAccess(i.href));
-            if (visible.length === 0) return null;
-            const isOpen   = openSection === group.title;
-            const hasActive = visible.some(i => pathname.startsWith(i.href));
-
-            return (
-              <div key={group.title}>
-                <button
-                  onClick={() => setOpenSection(isOpen ? "" : group.title)}
-                  aria-expanded={isOpen}
-                  style={{
-                    width: "100%", background: "none", border: "none", cursor: "pointer",
-                    padding: "9px 16px", display: "flex", justifyContent: "space-between",
-                    alignItems: "center", color: hasActive ? "#E8721C" : "#4A5A72",
-                    fontSize: 10, fontWeight: 700, letterSpacing: .7, textTransform: "uppercase",
-                    borderLeft: hasActive && !isOpen ? "2px solid #E8721C" : "2px solid transparent",
-                    transition: "all .15s",
-                  }}
-                >
-                  <span>{group.title}</span>
-                  <span style={{ fontSize: 9, opacity: .6 }}>{isOpen ? "▲" : "▼"}</span>
-                </button>
-
-                <div style={{
-                  maxHeight: isOpen ? `${visible.length * 44}px` : "0px",
-                  overflow: "hidden",
-                  transition: "max-height 220ms ease",
-                }}>
-                  {visible.map(item => {
-                    const active = pathname.startsWith(item.href);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={`nav-item ${active ? "active" : ""}`}
-                        aria-current={active ? "page" : undefined}
-                      >
-                        <span style={{ fontSize: 15 }}>{item.icon}</span>
-                        <span style={{ flex: 1 }}>{item.label}</span>
-                        {item.badge && (() => {
-                          const cnt = item.href.includes("qr-orders") ? qrPending : pendingCount;
-                          return <NotificationBadge count={cnt} showDot={cnt === 0} ariaLabel={`${cnt ?? 0} pending`} />;
-                        })()}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+        {/* Nav */}
+        <nav className="dl-nav">
+          {NAV.map(g => (
+            <div key={g.section}>
+              {!collapsed && <div className="dl-section">{g.section}</div>}
+              {collapsed && <div className="dl-section-div"/>}
+              {g.items.map(item => {
+                const active = pathname === item.href || pathname.startsWith(item.href+"/");
+                return (
+                  <Link key={item.href} href={item.href}
+                    className={`dl-navitem${active?" dl-active":""}${collapsed?" dl-icon-only":""}`}
+                    title={collapsed?item.label:undefined}
+                    onClick={()=>setMobileOpen(false)}>
+                    <span className="dl-navicon" aria-hidden="true">{item.icon}</span>
+                    {!collapsed && <span>{item.label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        <div style={{ borderTop: "1px solid #1E2D42", padding: "12px 16px", flexShrink: 0 }}>
+        {/* User */}
+        <div className="dl-foot">
           {user && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#CBD5E1", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.name}</div>
-              <div style={{ fontSize: 10, color: "#3A4A62", fontWeight: 600 }}>{user.role}</div>
+            <div className={`dl-user${collapsed?" dl-user-col":""}`}>
+              <div className="dl-avatar">{initials}</div>
+              {!collapsed && (
+                <div className="dl-userinfo">
+                  <div className="dl-username">{user.name||user.email||"User"}</div>
+                  <div className="dl-userrole">{user.role||"Staff"}</div>
+                </div>
+              )}
+              <button className="dl-logout" onClick={logout} title="Logout" aria-label="Logout">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+              </button>
             </div>
           )}
-          <button onClick={logout} style={{
-            background: "#1E2D42", border: "none", width: "100%", cursor: "pointer",
-            color: "#94A3B8", fontSize: 12, padding: "7px 0", borderRadius: 6,
-            display: "flex", alignItems: "center", gap: 8, justifyContent: "center",
-            transition: "all 0.15s",
-          }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#DC2626"}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "#1E2D42"}
-          >
-            <span>🚪</span><span>Logout</span>
-          </button>
         </div>
       </aside>
 
-      <main className="main-content">
-        <div className="topbar">
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span className="topbar-title">{currentPage?.icon} {currentPage?.label ?? "Dashboard"}</span>
+      {/* Main area */}
+      <div className={`dl-main${collapsed?" dl-main-full":""}`}>
+        {/* Header */}
+        <header className="dl-header">
+          <button className="dl-menu-btn dl-mobile-only" onClick={()=>setMobileOpen(v=>!v)} aria-label="Menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+          <div className="dl-header-date">
+            {new Date().toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",year:"numeric"})}
           </div>
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ position: "relative" }}>
-              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="🔍 Search..."
-                onBlur={() => setTimeout(() => setQuery(""), 200)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, width: 200, outline: "none" }} />
-              {(searching || results.length > 0) && (
-                <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "white", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 320, zIndex: 300 }}>
-                  {searching && <div style={{ padding: "12px 16px", fontSize: 12, color: "#94A3B8" }}>Searching…</div>}
-                  {results.map((r, i) => (
-                    <div key={i} style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9", cursor: "pointer", fontSize: 12 }} onMouseDown={() => setQuery("")}>
-                      <div style={{ fontWeight: 600 }}>{r.label}</div>
-                      <div style={{ fontSize: 11, color: "#64748B" }}>{r.type} · {r.sub}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+        </header>
+        <main className="dl-content">{children}</main>
+      </div>
 
-            <span style={{ fontSize: 12, color: "#94A3B8" }}>
-              {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-            </span>
-
-            <div style={{ position: "relative" }}>
-              <button onClick={() => { setNotifOpen(o => !o); if (!notifOpen && unread > 0) markAllRead(); }}
-                style={{ background: "none", border: "1px solid #E2E8F0", borderRadius: 8, padding: "5px 9px", cursor: "pointer", fontSize: 16, position: "relative", display: "flex", alignItems: "center" }}>
-                🔔
-                {unread > 0 && (
-                  <span style={{ position: "absolute", top: -4, right: -4, background: "#DC2626", color: "white", borderRadius: "50%", fontSize: 9, fontWeight: 800, width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {unread > 9 ? "9+" : unread}
-                  </span>
-                )}
-              </button>
-              {notifOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: 320, background: "white", border: "1px solid #E2E8F0", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.14)", zIndex: 200, overflow: "hidden" }}>
-                  <div style={{ padding: "12px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontWeight: 700, fontSize: 13 }}>Notifications</span>
-                    <button onClick={markAllRead} style={{ background: "none", border: "none", fontSize: 11, color: "#E8721C", cursor: "pointer", fontWeight: 600 }}>Mark all read</button>
-                  </div>
-                  <div style={{ maxHeight: 340, overflowY: "auto" }}>
-                    {notifs.length === 0
-                      ? <div style={{ padding: "24px 16px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>No notifications</div>
-                      : notifs.map(n => (
-                        <div key={n.id} style={{ padding: "10px 16px", borderBottom: "1px solid #F8FAFC", background: n.isRead ? "white" : "#FFF7ED", display: "flex", gap: 10, alignItems: "flex-start" }}>
-                          <span style={{ fontSize: 16, flexShrink: 0 }}>{n.type==="ERROR"?"🔴":n.type==="SUCCESS"?"✅":n.type==="WARNING"?"⚠️":"ℹ️"}</span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 2 }}>{n.title}</div>
-                            <div style={{ fontSize: 11, color: "#64748B", lineHeight: 1.4 }}>{n.message}</div>
-                            <div style={{ fontSize: 10, color: "#CBD5E1", marginTop: 4 }}>{new Date(n.createdAt).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</div>
-                          </div>
-                          {!n.isRead && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E8721C", flexShrink: 0, marginTop: 4 }} />}
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {user && (
-              <div style={{ background: "#FFF0E5", border: "1px solid #FDBA74", borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 700, color: "#E8721C" }}>
-                {user.role}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="page-body">{children}</div>
-      </main>
-
-      <ToastContainer />
-      <AIAssistant />
+      <style jsx>{`
+        .dl-root{display:flex;min-height:100vh;background:#06060f;color:#f8fafc;font-family:'Inter',system-ui,sans-serif}
+        .dl-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:39;display:none}
+        .dl-sidebar{width:256px;flex-shrink:0;position:fixed;top:0;left:0;bottom:0;z-index:40;display:flex;flex-direction:column;background:rgba(8,8,22,.82);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.07);transition:width .25s ease;overflow:hidden}
+        .dl-collapsed{width:66px}
+        .dl-logo{display:flex;align-items:center;gap:10px;padding:16px 14px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;min-height:58px}
+        .dl-logo-icon{width:34px;height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:9px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.25)}
+        .dl-logo-text{font-size:16px;font-weight:800;white-space:nowrap;background:linear-gradient(135deg,#818cf8,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .dl-collapse-btn{margin-left:auto;background:none;border:none;color:#64748b;cursor:pointer;padding:4px;border-radius:6px;display:flex;align-items:center;flex-shrink:0;transition:color .15s,background .15s}
+        .dl-collapse-btn:hover{color:#f8fafc;background:rgba(255,255,255,.07)}
+        .dl-nav{flex:1;overflow-y:auto;padding:6px 8px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.08) transparent}
+        .dl-section{font-size:10px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#475569;padding:8px 8px 3px;margin-top:4px;white-space:nowrap}
+        .dl-section-div{height:1px;background:rgba(255,255,255,.06);margin:6px 4px}
+        :global(.dl-navitem){display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;color:#94a3b8;font-size:13px;font-weight:500;text-decoration:none;border:1px solid transparent;transition:all .15s;white-space:nowrap;cursor:pointer}
+        :global(.dl-navitem:hover){background:rgba(255,255,255,.05);color:#f8fafc;border-color:rgba(255,255,255,.07)}
+        :global(.dl-active){background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(139,92,246,.14));color:#818cf8;border-color:rgba(99,102,241,.28);box-shadow:0 0 10px rgba(99,102,241,.18)}
+        :global(.dl-icon-only){justify-content:center;padding:9px 0}
+        .dl-navicon{font-size:15px;flex-shrink:0;font-style:normal;line-height:1;opacity:.7}
+        :global(.dl-active) .dl-navicon{opacity:1}
+        .dl-foot{padding:10px 8px;border-top:1px solid rgba(255,255,255,.07);flex-shrink:0}
+        .dl-user{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+        .dl-user-col{justify-content:center;padding:8px 6px}
+        .dl-avatar{width:30px;height:30px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+        .dl-userinfo{flex:1;min-width:0}
+        .dl-username{font-size:12px;font-weight:600;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .dl-userrole{font-size:10px;color:#64748b;white-space:nowrap;text-transform:capitalize}
+        .dl-logout{background:none;border:none;color:#64748b;cursor:pointer;padding:4px;border-radius:6px;display:flex;align-items:center;flex-shrink:0;margin-left:auto;transition:color .15s,background .15s}
+        .dl-logout:hover{color:#ef4444;background:rgba(239,68,68,.1)}
+        .dl-main{flex:1;margin-left:256px;display:flex;flex-direction:column;min-height:100vh;transition:margin-left .25s ease}
+        .dl-main-full{margin-left:66px}
+        .dl-header{position:sticky;top:0;z-index:30;height:57px;background:rgba(6,6,15,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;padding:0 24px;gap:12px}
+        .dl-header-date{font-size:12px;color:#64748b;margin-left:auto}
+        .dl-menu-btn{background:none;border:none;color:#94a3b8;cursor:pointer;padding:6px;border-radius:8px;transition:background .15s,color .15s;display:flex;align-items:center}
+        .dl-menu-btn:hover{background:rgba(255,255,255,.07);color:#f8fafc}
+        .dl-content{flex:1;padding:24px;overflow-x:hidden}
+        .dl-desktop-only{} .dl-mobile-only{display:none}
+        @media(max-width:768px){
+          .dl-overlay{display:block}
+          .dl-sidebar{transform:translateX(-100%);transition:transform .25s ease;width:256px!important}
+          .dl-mobile-open{transform:translateX(0)}
+          .dl-main,.dl-main-full{margin-left:0!important}
+          .dl-desktop-only{display:none}
+          .dl-mobile-only{display:flex}
+          .dl-content{padding:16px}
+          .dl-header{padding:0 16px}
+        }
+      `}</style>
     </div>
   );
 }
