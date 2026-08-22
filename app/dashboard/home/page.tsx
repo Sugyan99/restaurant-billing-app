@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import MuiKpiCard from "../../components/MuiKpiCard";
 
 type Stats = {
   totalRevenue: number; totalOrders: number; avgOrderValue: number; totalTax: number;
@@ -97,17 +98,26 @@ export default function HomePage() {
             { label: "Orders Today",    value: stats?.totalOrders ?? 0,                                    icon: "🧾", color: "#2563EB", pct: ordPct },
             { label: "Avg Order Value", value: `₹${(stats?.avgOrderValue ?? 0).toLocaleString("en-IN")}`, icon: "📊", color: "#7C3AED", pct: null },
             { label: "Tax Collected",   value: `₹${(stats?.totalTax ?? 0).toLocaleString("en-IN")}`,      icon: "🏛️", color: "#D97706", pct: null },
-          ].map(s => (
-            <div key={s.label} className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 26 }}>{s.icon}</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: s.color, margin: "4px 0 2px" }}>{s.value}</div>
-              <div style={{ fontSize: 12, color: "#64748B" }}>{s.label}</div>
-              {s.pct && (
-                <div style={{ fontSize: 11, color: s.pct.up ? "#16A34A" : "#DC2626", fontWeight: 600, marginTop: 4 }}>
-                  {s.pct.up ? "▲" : "▼"} {s.pct.value}% vs yesterday
-                </div>
-              )}
-            </div>
+          ].map((s, index) => (
+            index === 0 ? (
+              <MuiKpiCard
+                key={s.label}
+                label={s.label}
+                value={s.value}
+                trend={s.pct ? { value: s.pct.value, up: s.pct.up } : null}
+              />
+            ) : (
+              <div key={s.label} className="card" style={{ padding: 20 }}>
+                <div style={{ fontSize: 26 }}>{s.icon}</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: s.color, margin: "4px 0 2px" }}>{s.value}</div>
+                <div style={{ fontSize: 12, color: "#64748B" }}>{s.label}</div>
+                {s.pct && (
+                  <div style={{ fontSize: 11, color: s.pct.up ? "#16A34A" : "#DC2626", fontWeight: 600, marginTop: 4 }}>
+                    {s.pct.up ? "▲" : "▼"} {s.pct.value}% vs yesterday
+                  </div>
+                )}
+              </div>
+            )
           ))}
         </div>
       )}
