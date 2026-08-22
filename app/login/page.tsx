@@ -19,6 +19,25 @@ function useRipple() {
   return { ref, trigger };
 }
 
+/* ── 3D Tilt ── */
+function use3DTilt(intensity = 10) {
+  const ref = useRef<HTMLDivElement>(null);
+  const move = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width - 0.5) * intensity;
+    const y = ((e.clientY - r.top) / r.height - 0.5) * -intensity;
+    el.style.transform = `perspective(920px) rotateY(${x}deg) rotateX(${y}deg) scale3d(1.018,1.018,1.018)`;
+    el.style.transition = `transform 0.08s ease`;
+  }, [intensity]);
+  const leave = useCallback(() => {
+    if (!ref.current) return;
+    ref.current.style.transition = `transform 0.5s cubic-bezier(0.2,0.9,0.2,1)`;
+    ref.current.style.transform = `perspective(920px) rotateY(0deg) rotateX(0deg) scale3d(1,1,1)`;
+  }, []);
+  return { ref, move, leave };
+}
+
 /* ── Typewriter ── */
 function Typewriter({ texts }: { texts: string[] }) {
   const [idx, setIdx] = useState(0);
@@ -109,6 +128,34 @@ function Beams() {
   );
 }
 
+/* ── 3D Geometric Background ── */
+const GEO = ["⬡","◈","⬟","◆","⬠","⭓","⬣","◉"];
+function ThreeDBg() {
+  const items = useRef(
+    Array.from({ length: 12 }, (_, i) => ({
+      shape: GEO[i % GEO.length],
+      x: 4 + Math.random() * 92,
+      y: 4 + Math.random() * 92,
+      dur: 16 + Math.random() * 16,
+      delay: -Math.random() * 30,
+      size: 14 + Math.random() * 34,
+      opacity: 0.025 + Math.random() * 0.055,
+      color: i % 3 === 0 ? "#E8721C" : i % 3 === 1 ? "#6366F1" : "#F59E0B",
+    }))
+  );
+  return (
+    <div className="lb-3dbg" aria-hidden="true">
+      {items.current.map((p, i) => (
+        <span key={i} className="lb-3dshape" style={{
+          left: `${p.x}%`, top: `${p.y}%`,
+          fontSize: `${p.size}px`, opacity: p.opacity, color: p.color,
+          animationDuration: `${p.dur}s`, animationDelay: `${p.delay}s`,
+        }}>{p.shape}</span>
+      ))}
+    </div>
+  );
+}
+
 const TYPED = ["Tables & Orders","GST Billing","Kitchen Display","Staff & Shifts","Sales Reports","Inventory Control"];
 const FEATURES = [
   { icon: "🪑", label: "Smart Tables" },
@@ -132,6 +179,7 @@ export default function LoginPage() {
   const [emailFocus, setEmailFocus] = useState(false);
   const [pwdFocus, setPwdFocus]     = useState(false);
   const signInRipple = useRipple();
+  const tilt = use3DTilt();
 
   useEffect(() => {
     setMounted(true);
@@ -162,6 +210,7 @@ export default function LoginPage() {
       <div className="lb-grid" />
       <Beams />
       <Particles />
+      <ThreeDBg />
       <div className="lb-orb lb-o1" /><div className="lb-orb lb-o2" /><div className="lb-orb lb-o3" />
 
       {/* ── LEFT ── */}
@@ -169,13 +218,14 @@ export default function LoginPage() {
         <div className={`lb-wrap${mounted ? " lb-in" : ""}`}>
 
           <div className="lb-logo-wrap">
-            <div className="lb-logo-ring">
-              <div className="lb-logo-icon">🍽️</div>
+            <div className="lb-logo-ring lb-logo-3d">
+              <div className="lb-logo-icon lb-logo-icon-3d">🍽️</div>
             </div>
             <h1 className="lb-brand">RestoBill</h1>
             <p className="lb-tagline">Restaurant Management System</p>
           </div>
 
+          <div ref={tilt.ref} className="lb-tilt-wrap" onMouseMove={tilt.move} onMouseLeave={tilt.leave}>
           <div className={`lb-card-shell${success ? " lb-shell-ok" : ""}`}>
             <div className={`lb-card${success ? " lb-card-ok" : ""}`}>
               <div className="lb-card-glow" />
@@ -234,6 +284,7 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+          </div>{/* /tilt-wrap */}
           <p className="lb-note">Need access? Contact the restaurant owner.</p>
         </div>
       </div>
@@ -250,7 +301,7 @@ export default function LoginPage() {
 
           <div className="lb-feat-grid">
             {FEATURES.map((f, i) => (
-              <div key={f.label} className="lb-feat" style={{ animationDelay: `${0.4 + i * 0.08}s` }}>
+              <div key={f.label} className="lb-feat lb-feat-3d" style={{ animationDelay: `${0.4 + i * 0.08}s` }}>
                 <span className="lb-feat-icon">{f.icon}</span>
                 <span className="lb-feat-label">{f.label}</span>
               </div>
@@ -571,4 +622,142 @@ const CSS = `
 @keyframes dotPulse{0%,100%{box-shadow:0 0 6px #22C55E}50%{box-shadow:0 0 12px #22C55E,0 0 24px rgba(34,197,94,0.3)}}
 
 @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+/* ═══════════ 3D GLASSMORPHISM UPGRADES ═══════════ */
+
+/* 3D Geometric BG */
+.lb-3dbg{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+.lb-3dshape{
+  position:absolute;line-height:1;
+  animation:float3d linear infinite;
+  will-change:transform,opacity;
+}
+@keyframes float3d{
+  0%  {transform:perspective(600px) translateZ(-30px) translateY(0)   rotate(0deg)  scale(0.7);opacity:0}
+  8%  {opacity:1}
+  50% {transform:perspective(600px) translateZ( 20px) translateY(-40px) rotate(180deg) scale(1.1)}
+  92% {opacity:0.7}
+  100%{transform:perspective(600px) translateZ(-30px) translateY(-80px) rotate(360deg) scale(0.7);opacity:0}
+}
+
+/* Tilt wrapper */
+.lb-tilt-wrap{transform-style:preserve-3d;will-change:transform;}
+
+/* Card shell 3D depth layers via pseudo */
+.lb-card-shell::before{
+  content:'';position:absolute;inset:0;border-radius:26px;
+  background:linear-gradient(135deg,rgba(255,255,255,0.07) 0%,transparent 55%);
+  pointer-events:none;z-index:1;
+}
+.lb-card-shell::after{
+  content:'';position:absolute;inset:-1px;border-radius:27px;
+  background:linear-gradient(225deg,rgba(232,114,28,0.15) 0%,transparent 50%,rgba(99,102,241,0.08) 100%);
+  pointer-events:none;z-index:0;
+}
+
+/* 3D inner card shine layer */
+.lb-card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:40%;
+  background:linear-gradient(180deg,rgba(255,255,255,0.055) 0%,transparent 100%);
+  border-radius:24px 24px 0 0;pointer-events:none;
+}
+
+/* 3D Logo */
+.lb-logo-3d{animation:spinRing 6s linear infinite,logoFloat3d 8s ease-in-out infinite;}
+@keyframes logoFloat3d{
+  0%,100%{filter:drop-shadow(0 4px 16px rgba(232,114,28,0.3))}
+  50%    {filter:drop-shadow(0 8px 32px rgba(232,114,28,0.55))}
+}
+.lb-logo-icon-3d{
+  box-shadow:
+    0  6px 18px rgba(0,0,0,0.4),
+    0  2px  6px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -2px 6px rgba(0,0,0,0.2);
+  transition:box-shadow .3s,transform .3s;
+}
+.lb-logo-ring:hover .lb-logo-icon-3d{
+  transform:scale(1.06) perspective(200px) rotateY(15deg);
+  box-shadow:0 12px 32px rgba(232,114,28,0.4),inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+/* 3D Feature cards */
+.lb-feat-3d{
+  position:relative;
+  box-shadow:0 4px 12px rgba(0,0,0,0.18),0 1px 3px rgba(0,0,0,0.12);
+  transform-style:preserve-3d;
+}
+.lb-feat-3d::before{
+  content:'';position:absolute;inset:0;border-radius:14px;
+  background:linear-gradient(135deg,rgba(255,255,255,0.06) 0%,transparent 60%);
+  pointer-events:none;
+}
+.lb-feat-3d:hover{
+  transform:perspective(400px) translateZ(10px) translateY(-5px) !important;
+  box-shadow:0 16px 36px rgba(0,0,0,0.28),0 4px 12px rgba(0,0,0,0.15),0 0 0 1px rgba(232,114,28,0.3);
+  background:rgba(232,114,28,0.1);border-color:rgba(232,114,28,0.28);
+}
+.lb-feat-3d .lb-feat-icon{
+  transition:transform .3s ease,filter .3s ease;
+  display:inline-block;
+}
+.lb-feat-3d:hover .lb-feat-icon{
+  transform:perspective(200px) translateZ(8px) scale(1.2);
+  filter:drop-shadow(0 4px 10px rgba(232,114,28,0.5));
+}
+
+/* 3D Stats cards */
+.lb-stat-card{
+  position:relative;transition:background .2s,transform .2s;transform-style:preserve-3d;
+}
+.lb-stat-card:hover{
+  background:rgba(232,114,28,0.06);
+  transform:perspective(300px) translateZ(6px);
+}
+
+/* 3D Google btn depth */
+.lb-google-btn{
+  box-shadow:0 4px 16px rgba(0,0,0,0.18),inset 0 1px 0 rgba(255,255,255,0.07);
+  transition:all .2s,box-shadow .2s;
+}
+.lb-google-btn:hover:not(:disabled){
+  box-shadow:0 8px 28px rgba(0,0,0,0.28),inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* 3D Sign-in button depth */
+.lb-signin{
+  box-shadow:
+    0 4px 24px rgba(232,114,28,0.5),
+    0 2px  8px rgba(0,0,0,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -2px 4px rgba(0,0,0,0.15);
+}
+.lb-signin:hover:not(:disabled){
+  box-shadow:
+    0 12px 36px rgba(232,114,28,0.65),
+    0  4px 16px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -2px 4px rgba(0,0,0,0.12);
+}
+
+/* 3D Input depth */
+.lb-input:focus{
+  box-shadow:
+    0 0 0 3px rgba(232,114,28,0.09),
+    0 2px 8px rgba(0,0,0,0.12),
+    inset 0 2px 4px rgba(0,0,0,0.06);
+}
+
+/* 3D Right panel badge */
+.lb-badge{
+  box-shadow:0 4px 16px rgba(232,114,28,0.2),inset 0 1px 0 rgba(255,255,255,0.08);
+  backdrop-filter:blur(8px);
+}
+
+/* 3D Stats wrap */
+.lb-stats-wrap{
+  background:rgba(255,255,255,0.02);
+  box-shadow:0 4px 24px rgba(0,0,0,0.2),inset 0 1px 0 rgba(255,255,255,0.05);
+  backdrop-filter:blur(12px);
+}
 `;

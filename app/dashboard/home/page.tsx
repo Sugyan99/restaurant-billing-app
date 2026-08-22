@@ -68,20 +68,42 @@ export default function HomePage() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{greeting} 👋</h2>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>
-            {time.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
-            {" · "}{time.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-          </p>
+      <style>{HOME_3D_CSS}</style>
+
+      {/* 3D Hero Banner */}
+      <div className="hd-hero">
+        <div className="hd-hero-bg">
+          <span className="hd-orb hd-o1"/><span className="hd-orb hd-o2"/>
+          <span className="hd-geo hd-g1">⬡</span><span className="hd-geo hd-g2">◈</span>
+          <span className="hd-geo hd-g3">⬟</span><span className="hd-geo hd-g4">◆</span>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowForecast(!showForecast)}>
-            {showForecast ? "📊 Hide Forecast" : "🔮 Show Forecast"}
-          </button>
-          <button className="btn btn-primary" onClick={() => router.push("/dashboard/tables")}>+ New Order</button>
+        <div className="hd-hero-content">
+          <div>
+            <h2 className="hd-greeting">{greeting} 👋</h2>
+            <p className="hd-time">
+              {time.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+              {" · "}{time.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </p>
+          </div>
+          <div className="hd-actions">
+            <div className="hd-live-badge"><span className="hd-live-dot"/>Live</div>
+            <button className="hd-btn-ghost" onClick={() => setShowForecast(!showForecast)}>
+              {showForecast ? "📊 Hide Forecast" : "🔮 Show Forecast"}
+            </button>
+            <button className="hd-btn-primary" onClick={() => router.push("/dashboard/tables")}>+ New Order</button>
+          </div>
+        </div>
+        <div className="hd-hero-chips">
+          {[
+            { icon:"🪑", label:"Tables", val: `${occupiedTables}/${tables.length}`, color:"#E8721C" },
+            { icon:"🍳", label:"Pending", val: orders.length, color:"#DC2626" },
+            { icon:"💰", label:"Revenue", val:`₹${((stats?.totalRevenue??0)/1000).toFixed(1)}k`, color:"#16A34A" },
+          ].map(c => (
+            <div key={c.label} className="hd-chip" style={{"--chip-color":c.color} as never}>
+              <span className="hd-chip-icon">{c.icon}</span>
+              <div><div className="hd-chip-val" style={{color:c.color}}>{c.val}</div><div className="hd-chip-lbl">{c.label}</div></div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -98,8 +120,10 @@ export default function HomePage() {
             { label: "Avg Order Value", value: `₹${(stats?.avgOrderValue ?? 0).toLocaleString("en-IN")}`, icon: "📊", color: "#7C3AED", pct: null },
             { label: "Tax Collected",   value: `₹${(stats?.totalTax ?? 0).toLocaleString("en-IN")}`,      icon: "🏛️", color: "#D97706", pct: null },
           ].map(s => (
-            <div key={s.label} className="card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 26 }}>{s.icon}</div>
+            <div key={s.label} className="card kpi-3d" style={{ padding: 20 }}>
+              <div className="kpi-icon-wrap" style={{"--kc":s.color} as never}>
+                <span className="kpi-icon-inner" style={{fontSize:22}}>{s.icon}</span>
+              </div>
               <div style={{ fontSize: 22, fontWeight: 900, color: s.color, margin: "4px 0 2px" }}>{s.value}</div>
               <div style={{ fontSize: 12, color: "#64748B" }}>{s.label}</div>
               {s.pct && (
@@ -259,3 +283,108 @@ export default function HomePage() {
     </div>
   );
 }
+
+const HOME_3D_CSS = `
+/* ═══ 3D HERO BANNER ═══ */
+.hd-hero{
+  position:relative;border-radius:20px;overflow:hidden;margin-bottom:24px;
+  background:linear-gradient(135deg,#0F1623 0%,#1A2232 60%,#0F1623 100%);
+  border:1px solid rgba(232,114,28,0.18);
+  box-shadow:0 8px 40px rgba(0,0,0,0.14),0 2px 8px rgba(0,0,0,0.08),inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.hd-hero-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+.hd-orb{position:absolute;border-radius:50%;filter:blur(60px);}
+.hd-o1{width:300px;height:300px;top:-100px;left:-60px;background:radial-gradient(circle,rgba(232,114,28,0.14),transparent 70%);animation:hdO1 10s ease-in-out infinite;}
+.hd-o2{width:240px;height:240px;bottom:-80px;right:10%;background:radial-gradient(circle,rgba(99,102,241,0.1),transparent 70%);animation:hdO2 14s ease-in-out infinite;}
+@keyframes hdO1{0%,100%{transform:translate(0,0)}50%{transform:translate(20px,12px)}}
+@keyframes hdO2{0%,100%{transform:translate(0,0)}50%{transform:translate(-16px,-20px)}}
+.hd-geo{position:absolute;opacity:0.055;font-size:36px;line-height:1;pointer-events:none;animation:hdGeo linear infinite;}
+.hd-g1{top:12%;left:8%;color:#E8721C;animation-duration:18s;}
+.hd-g2{top:55%;left:18%;color:#6366F1;animation-duration:22s;animation-delay:-6s;font-size:24px;}
+.hd-g3{top:20%;right:12%;color:#F59E0B;animation-duration:20s;animation-delay:-10s;font-size:28px;}
+.hd-g4{bottom:15%;right:25%;color:#E8721C;animation-duration:16s;animation-delay:-4s;font-size:20px;}
+@keyframes hdGeo{0%,100%{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.15)}}
+
+.hd-hero-content{
+  position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;
+  padding:24px 28px 16px;gap:16px;flex-wrap:wrap;
+}
+.hd-greeting{margin:0;font-size:22px;font-weight:800;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.3);}
+.hd-time{margin:4px 0 0;font-size:13px;color:#94A3B8;}
+.hd-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.hd-live-badge{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(22,163,74,0.12);border:1px solid rgba(22,163,74,0.25);
+  border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;color:#4ADE80;
+  backdrop-filter:blur(8px);
+}
+.hd-live-dot{
+  width:6px;height:6px;border-radius:50%;background:#22C55E;flex-shrink:0;
+  box-shadow:0 0 6px #22C55E;animation:hdPulse 2s ease-in-out infinite;
+}
+@keyframes hdPulse{0%,100%{box-shadow:0 0 6px #22C55E}50%{box-shadow:0 0 12px #22C55E,0 0 20px rgba(34,197,94,0.3)}}
+.hd-btn-ghost{
+  padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
+  background:rgba(255,255,255,0.07);color:#CBD5E1;
+  border:1px solid rgba(255,255,255,0.12);transition:all .2s;
+  box-shadow:0 2px 8px rgba(0,0,0,0.15),inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.hd-btn-ghost:hover{background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.2);}
+.hd-btn-primary{
+  padding:7px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;
+  background:linear-gradient(135deg,#E8721C,#C45A0E);color:#fff;border:none;
+  box-shadow:0 4px 16px rgba(232,114,28,0.45),inset 0 1px 0 rgba(255,255,255,0.18),inset 0 -2px 4px rgba(0,0,0,0.15);
+  transition:all .2s;
+}
+.hd-btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(232,114,28,0.55),inset 0 1px 0 rgba(255,255,255,0.22);}
+
+/* 3D chips row */
+.hd-hero-chips{
+  position:relative;z-index:1;display:flex;gap:12px;padding:0 28px 20px;flex-wrap:wrap;
+}
+.hd-chip{
+  display:flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,0.04);border-radius:12px;
+  padding:10px 16px;border:1px solid rgba(255,255,255,0.07);
+  backdrop-filter:blur(10px);flex:1;min-width:100px;
+  box-shadow:0 4px 16px rgba(0,0,0,0.18),inset 0 1px 0 rgba(255,255,255,0.06);
+  transition:transform .2s ease,box-shadow .2s ease;cursor:default;transform-style:preserve-3d;
+}
+.hd-chip:hover{
+  transform:perspective(300px) translateZ(8px) translateY(-2px);
+  box-shadow:0 10px 28px rgba(0,0,0,0.22),inset 0 1px 0 rgba(255,255,255,0.09);
+  background:rgba(255,255,255,0.06);
+}
+.hd-chip-icon{font-size:20px;flex-shrink:0;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));}
+.hd-chip-val{font-size:17px;font-weight:800;line-height:1.1;letter-spacing:-.3px;}
+.hd-chip-lbl{font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.5px;margin-top:1px;}
+
+/* ═══ 3D KPI CARDS ═══ */
+.kpi-3d{
+  transition:transform .25s cubic-bezier(0.2,0.9,0.2,1),box-shadow .25s ease;
+  cursor:default;transform-style:preserve-3d;position:relative;overflow:hidden;
+}
+.kpi-3d::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:50%;
+  background:linear-gradient(180deg,rgba(255,255,255,0.045) 0%,transparent 100%);
+  border-radius:12px 12px 0 0;pointer-events:none;z-index:0;
+}
+.kpi-3d:hover{
+  transform:perspective(500px) translateZ(14px) translateY(-5px);
+  box-shadow:0 20px 48px rgba(0,0,0,0.12),0 8px 20px rgba(0,0,0,0.07);
+}
+
+/* 3D KPI icon */
+.kpi-icon-wrap{
+  width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  background:color-mix(in srgb,var(--kc) 12%,transparent);
+  border:1px solid color-mix(in srgb,var(--kc) 20%,transparent);
+  box-shadow:0 4px 12px rgba(0,0,0,0.1),inset 0 1px 0 rgba(255,255,255,0.5);
+  margin-bottom:10px;transition:transform .3s ease,box-shadow .3s ease;transform-style:preserve-3d;
+}
+.kpi-3d:hover .kpi-icon-wrap{
+  transform:perspective(200px) translateZ(6px) scale(1.08);
+  box-shadow:0 8px 20px rgba(0,0,0,0.14),inset 0 1px 0 rgba(255,255,255,0.6);
+}
+.kpi-icon-inner{display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.15));}
+`;
