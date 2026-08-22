@@ -3,6 +3,21 @@ import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
 import { PageTabs } from "@/components/PageTabs";
 import ImportPage from "@/app/dashboard/import/page";
+import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CardHeader from "@mui/material/CardHeader";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import TextField from "@mui/material/TextField";
+import Stack from "@mui/material/Stack";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
 
 type Category = { id: string; name: string; sortOrder: number; items: MenuItem[] };
 type MenuItem = { id: string; name: string; price: number; isVeg: boolean; isAvailable: boolean; description?: string };
@@ -130,133 +145,130 @@ function MenuContent() {
   const filtered = searchTerm ? allItems.filter((i) => i.name.toLowerCase().includes(searchTerm.toLowerCase())) : allItems;
 
   return (
-    <div>
+    <Box>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Menu Management</h2>
-          <p style={{ margin: "2px 0 0", fontSize: 13, color: "#64748B" }}>
+      <Box sx={{ display:"flex", justifyContent:"space-between", alignItems:"center", mb:2.5, flexWrap:"wrap", gap:1 }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight:800, fontSize:{ xs:18, md:20 } }}>Menu Management</Typography>
+          <Typography sx={{ fontSize:13, color:"text.secondary", mt:.25 }}>
             {allItems.length} items across {categories.length} categories
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowCatModal(true)}>+ Category</button>
-          <button className="btn btn-primary btn-sm" onClick={() => openAddItem()}>+ Add Item</button>
-        </div>
-      </div>
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1}>
+          <Button size="small" variant="outlined" onClick={() => setShowCatModal(true)}>+ Category</Button>
+          <Button size="small" variant="contained" onClick={() => openAddItem()}>+ Add Item</Button>
+        </Stack>
+      </Box>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-        <button className={`btn btn-sm ${activeTab === "items" ? "btn-primary" : "btn-ghost"}`} onClick={() => setActiveTab("items")}>All Items</button>
-        <button className={`btn btn-sm ${activeTab === "categories" ? "btn-primary" : "btn-ghost"}`} onClick={() => setActiveTab("categories")}>Categories</button>
-      </div>
+      <Stack direction="row" spacing={1} sx={{ mb:2.5 }}>
+        {(["items","categories"] as const).map(t => (
+          <Button key={t} size="small" variant={activeTab===t?"contained":"outlined"} onClick={() => setActiveTab(t)} sx={{ textTransform:"capitalize" }}>
+            {t === "items" ? "All Items" : "Categories"}
+          </Button>
+        ))}
+      </Stack>
 
       {activeTab === "items" ? (
-        <div>
-          {/* Search */}
-          <div className="card" style={{ marginBottom: 16 }}>
-            <div className="card-body" style={{ padding: "12px 16px" }}>
-              <input className="form-input" placeholder="🔍 Search menu items..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-            </div>
-          </div>
+        <Box>
+          <Card elevation={0} sx={{ mb:2 }}>
+            <CardContent sx={{ p:"12px 16px!important" }}>
+              <TextField fullWidth size="small" placeholder="🔍 Search menu items..." value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)} />
+            </CardContent>
+          </Card>
 
-          {/* Items by category */}
-          {(searchTerm ? [{ id: "search", name: "Search Results", sortOrder: 0, items: filtered }] : categories).map((cat) => {
-            const items = searchTerm ? filtered : cat.items.map((i) => ({ ...i, categoryId: cat.id, categoryName: cat.name }));
+          {(searchTerm ? [{ id:"search", name:"Search Results", sortOrder:0, items:filtered }] : categories).map(cat => {
+            const items = searchTerm ? filtered : cat.items.map(i => ({ ...i, categoryId: cat.id, categoryName: cat.name }));
             if (items.length === 0 && !searchTerm) return null;
             return (
-              <div className="card" key={cat.id} style={{ marginBottom: 16 }}>
-                <div className="card-header">
-                  <h3 className="card-title">{cat.name} ({items.length})</h3>
-                  {!searchTerm && <button className="btn btn-ghost btn-sm" onClick={() => openAddItem(cat.id)}>+ Add to {cat.name}</button>}
-                </div>
-                {items.length === 0 ? (
-                  <div style={{ padding: "20px 20px", color: "#94A3B8", fontSize: 13 }}>No items in this category yet.</div>
-                ) : (
-                  <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                      <thead>
-                        <tr style={{ borderBottom: "1px solid #E2E8F0" }}>
-                          {["Item", "Type", "Price", "Status", "Actions"].map((h) => (
-                            <th key={h} style={{ padding: "8px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>{h}</th>
+              <Card key={cat.id} elevation={0} sx={{ mb:2 }}>
+                <CardHeader
+                  title={<Typography sx={{ fontWeight:700, fontSize:15 }}>{cat.name} <Chip label={items.length} size="small" sx={{ ml:.5, fontSize:11 }}/></Typography>}
+                  action={!searchTerm && <Button size="small" variant="outlined" onClick={() => openAddItem(cat.id)} sx={{ fontSize:11 }}>+ Add to {cat.name}</Button>}
+                  sx={{ pb:0, px:2, pt:1.5 }}
+                />
+                {items.length === 0
+                  ? <CardContent><Typography sx={{ color:"text.secondary", fontSize:13 }}>No items yet.</Typography></CardContent>
+                  : <Box sx={{ overflowX:"auto" }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow sx={{ "& th":{ fontSize:11, fontWeight:700, color:"text.secondary", textTransform:"uppercase", letterSpacing:.4 } }}>
+                            {["Item","Type","Price","Status","Actions"].map(h => <TableCell key={h}>{h}</TableCell>)}
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {items.map(item => (
+                            <TableRow key={item.id} sx={{ opacity: item.isAvailable ? 1 : .5, "&:last-child td":{ border:0 } }}>
+                              <TableCell>
+                                <Typography sx={{ fontWeight:600, fontSize:13 }}>{item.name}</Typography>
+                                {item.description && <Typography sx={{ fontSize:11, color:"text.secondary" }}>{item.description}</Typography>}
+                              </TableCell>
+                              <TableCell>
+                                <Chip label={item.isVeg ? "Veg" : "Non-Veg"} size="small"
+                                  sx={{ fontSize:10, bgcolor: item.isVeg?"#DCFCE7":"#FEE2E2", color: item.isVeg?"#16A34A":"#DC2626", fontWeight:600 }}/>
+                              </TableCell>
+                              <TableCell><Typography sx={{ fontWeight:700, color:"primary.main" }}>₹{item.price.toFixed(2)}</Typography></TableCell>
+                              <TableCell>
+                                <Chip label={item.isAvailable?"Available":"Unavailable"} size="small"
+                                  color={item.isAvailable?"success":"default"} sx={{ fontSize:10 }}/>
+                              </TableCell>
+                              <TableCell>
+                                <Stack direction="row" spacing={.5}>
+                                  <Button size="small" variant="outlined" sx={{ fontSize:11, minWidth:0, px:1 }} onClick={() => openEditItem(item, item.categoryId)}>Edit</Button>
+                                  <Button size="small" variant="outlined" color={item.isAvailable?"error":"success"} sx={{ fontSize:11, minWidth:0, px:1 }}
+                                    onClick={() => toggleAvailable(item, item.categoryId)}>
+                                    {item.isAvailable?"Disable":"Enable"}
+                                  </Button>
+                                  <Button size="small" variant="outlined" color="error" sx={{ fontSize:11, minWidth:0, px:1 }} onClick={() => deleteItem(item.id)}>Del</Button>
+                                </Stack>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((item) => (
-                          <tr key={item.id} style={{ borderBottom: "1px solid #F1F5F9", opacity: item.isAvailable ? 1 : 0.5 }}>
-                            <td style={{ padding: "12px 16px" }}>
-                              <div style={{ fontWeight: 600 }}>{item.name}</div>
-                              {item.description && <div style={{ fontSize: 11, color: "#94A3B8" }}>{item.description}</div>}
-                            </td>
-                            <td style={{ padding: "12px 16px" }}>
-                              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                <span className={`veg-dot ${item.isVeg ? "veg" : "nonveg"}`} />
-                                <span style={{ fontSize: 11, fontWeight: 600, color: item.isVeg ? "#16A34A" : "#DC2626" }}>
-                                  {item.isVeg ? "Veg" : "Non-Veg"}
-                                </span>
-                              </span>
-                            </td>
-                            <td style={{ padding: "12px 16px", fontWeight: 700, color: "#E8721C" }}>₹{item.price.toFixed(2)}</td>
-                            <td style={{ padding: "12px 16px" }}>
-                              <span className={`badge ${item.isAvailable ? "badge-ready" : "badge-cancelled"}`}>
-                                {item.isAvailable ? "Available" : "Unavailable"}
-                              </span>
-                            </td>
-                            <td style={{ padding: "12px 16px" }}>
-                              <div style={{ display: "flex", gap: 6 }}>
-                                <button className="btn btn-ghost btn-sm" onClick={() => openEditItem(item, item.categoryId)}>Edit</button>
-                                <button className={`btn btn-sm ${item.isAvailable ? "btn-danger" : "btn-success"}`}
-                                  onClick={() => toggleAvailable(item, item.categoryId)}>
-                                  {item.isAvailable ? "Disable" : "Enable"}
-                                </button>
-                                <button className="btn btn-danger btn-sm" onClick={() => deleteItem(item.id)}>Delete</button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+                        </TableBody>
+                      </Table>
+                    </Box>
+                }
+              </Card>
             );
           })}
 
           {allItems.length === 0 && (
-            <div style={{ textAlign: "center", padding: "60px 0", color: "#94A3B8" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>🍽️</div>
-              <p style={{ fontSize: 15, fontWeight: 600 }}>Menu is empty</p>
-              <p style={{ fontSize: 13 }}>Add categories first, then add menu items</p>
-              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
-                <button className="btn btn-ghost" onClick={() => setShowCatModal(true)}>+ Add Category</button>
-                <button className="btn btn-primary" onClick={() => openAddItem()}>+ Add Item</button>
-              </div>
-            </div>
+            <Box sx={{ textAlign:"center", py:8, color:"text.secondary" }}>
+              <Typography sx={{ fontSize:40, mb:1.5 }}>🍽️</Typography>
+              <Typography sx={{ fontSize:15, fontWeight:600, mb:.5 }}>Menu is empty</Typography>
+              <Typography sx={{ fontSize:13, mb:2 }}>Add categories first, then add menu items</Typography>
+              <Stack direction="row" spacing={1} sx={{justifyContent:"center"}}>
+                <Button variant="outlined" onClick={() => setShowCatModal(true)}>+ Add Category</Button>
+                <Button variant="contained" onClick={() => openAddItem()}>+ Add Item</Button>
+              </Stack>
+            </Box>
           )}
-        </div>
+        </Box>
       ) : (
-        <div>
+        <Box>
           {categories.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px 0", color: "#94A3B8" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
-              <p style={{ fontSize: 15, fontWeight: 600 }}>No categories yet</p>
-              <button className="btn btn-primary" onClick={() => setShowCatModal(true)} style={{ marginTop: 12 }}>+ Add Category</button>
-            </div>
+            <Box sx={{ textAlign:"center", py:8, color:"text.secondary" }}>
+              <Typography sx={{ fontSize:40, mb:1.5 }}>📂</Typography>
+              <Typography sx={{ fontSize:15, fontWeight:600, mb:2 }}>No categories yet</Typography>
+              <Button variant="contained" onClick={() => setShowCatModal(true)}>+ Add Category</Button>
+            </Box>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
-              {categories.map((c) => (
-                <div key={c.id} className="card" style={{ padding: 20 }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{c.name}</div>
-                  <div style={{ fontSize: 13, color: "#64748B" }}>{c.items.length} items</div>
-                  <div style={{ marginTop: 12 }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => { openAddItem(c.id); setActiveTab("items"); }}>+ Add Item</button>
-                  </div>
-                </div>
+            <Grid container spacing={1.5}>
+              {categories.map(c => (
+                <Grid key={c.id} size={{ xs:6, sm:4, md:3 }}>
+                  <Card elevation={0} sx={{ p:2 }}>
+                    <Typography sx={{ fontSize:15, fontWeight:700, mb:.5 }}>{c.name}</Typography>
+                    <Typography sx={{ fontSize:12, color:"text.secondary", mb:1.5 }}>{c.items.length} items</Typography>
+                    <Button size="small" variant="outlined" fullWidth onClick={() => { openAddItem(c.id); setActiveTab("items"); }}>
+                      + Add Item
+                    </Button>
+                  </Card>
+                </Grid>
               ))}
-            </div>
+            </Grid>
           )}
-        </div>
+        </Box>
       )}
 
       {/* Add Item Modal */}
@@ -327,6 +339,6 @@ function MenuContent() {
           </div>
         </div>
       )}
-    </div>
+    </Box>
   );
 }

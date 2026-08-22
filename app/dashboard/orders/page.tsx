@@ -3,6 +3,14 @@ import { DeleteButton } from "@/components/DeleteButton";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { showToast } from "@/components/Toast";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Skeleton from "@mui/material/Skeleton";
 
 const KITCHENS = ["ALL", "MAIN", "GRILL", "BAR", "TANDOOR"];
 const LABEL: React.CSSProperties = { display:"block", fontSize:11, fontWeight:700, color:"#64748B", marginBottom:5, letterSpacing:.4, textTransform:"uppercase" };
@@ -252,22 +260,22 @@ ${o.kotNote ? `<p>🗒 ${o.kotNote}</p><hr/>` : ""}
   void tick; // used for re-render
 
   return (
-    <div>
+    <Box>
       {/* Header */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16, flexWrap:"wrap", gap:8 }}>
-        <div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:800 }}>Smart KOT</h2>
-          <p style={{ margin:"2px 0 0", fontSize:13, color:"#64748B" }}>
-            {active.length} active{cancelReqs > 0 ? ` · ` : ""}
-            {cancelReqs > 0 && <span style={{ color:"#DC2626", fontWeight:700 }}>{cancelReqs} cancel request{cancelReqs>1?"s":""}</span>}
-          </p>
-        </div>
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          <button className="btn btn-primary btn-sm" onClick={()=>setCreateModal(true)}>+ New KOT</button>
-          <button className={`btn btn-sm ${view==="KOT"?"btn-primary":"btn-ghost"}`} onClick={() => setView("KOT")}>🍳 KOT</button>
-          <button className={`btn btn-sm ${view==="LIST"?"btn-primary":"btn-ghost"}`} onClick={() => setView("LIST")}>📋 List</button>
-        </div>
-      </div>
+      <Box sx={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", mb:2, flexWrap:"wrap", gap:1 }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight:800, fontSize:{ xs:18, md:20 } }}>Smart KOT</Typography>
+          <Typography sx={{ fontSize:13, color:"text.secondary", mt:.25 }}>
+            {active.length} active
+            {cancelReqs > 0 && <> · <span style={{ color:"#DC2626", fontWeight:700 }}>{cancelReqs} cancel request{cancelReqs>1?"s":""}</span></>}
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1}>
+          <Button size="small" variant="contained" onClick={() => setCreateModal(true)}>+ New KOT</Button>
+          <Button size="small" variant={view==="KOT"?"contained":"outlined"} onClick={() => setView("KOT")}>🍳 KOT</Button>
+          <Button size="small" variant={view==="LIST"?"contained":"outlined"} onClick={() => setView("LIST")}>📋 List</Button>
+        </Stack>
+      </Box>
 
       {/* Kitchen station banner */}
       {myStation && (
@@ -287,25 +295,25 @@ ${o.kotNote ? `<p>🗒 ${o.kotNote}</p><hr/>` : ""}
         </div>
       )}
 
-      {/* Status filter tabs */}
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+      {/* Status filter */}
+      <Stack direction="row" sx={{ flexWrap:"wrap", gap:.75, mb:1.5 }}>
         {[["ACTIVE","Active"],["PENDING","Pending"],["PREPARING","Preparing"],["READY","Ready"],["PRIORITY","Priority"],["CANCEL_REQ", cancelReqs>0 ? `Cancel (${cancelReqs})` : "Cancel Req"],["ALL","All"]].map(([val,label]) => (
-          <button key={val} className={`btn btn-sm ${filter===val?"btn-primary":"btn-ghost"}`}
-            onClick={() => setFilter(val)}
-            style={val==="CANCEL_REQ" && cancelReqs>0 ? { borderColor:"#DC2626", color:"#DC2626" } : {}}>
-            {label}
-          </button>
+          <Chip key={val} label={label} size="small" clickable onClick={() => setFilter(val)}
+            color={filter===val ? "primary" : "default"}
+            sx={{ fontWeight:600, fontSize:12, ...(val==="CANCEL_REQ"&&cancelReqs>0?{color:"#DC2626",borderColor:"#DC2626"}:{}) }}
+            variant={filter===val ? "filled" : "outlined"}/>
         ))}
-      </div>
+      </Stack>
 
-      {/* Kitchen routing filter */}
-      <div style={{ display:"flex", gap:6, marginBottom:16, alignItems:"center" }}>
-        <span style={{ fontSize:11, color:"#64748B", fontWeight:600, textTransform:"uppercase" }}>Kitchen:</span>
+      {/* Kitchen filter */}
+      <Stack direction="row" sx={{ flexWrap:"wrap", gap:.75, mb:2 }}>
+        <Typography sx={{ fontSize:11, color:"text.secondary", fontWeight:700, textTransform:"uppercase", alignSelf:"center" }}>Kitchen:</Typography>
         {KITCHENS.map(k => (
-          <button key={k} className={`btn btn-sm ${kitchenF===k?"btn-primary":"btn-ghost"}`}
-            onClick={() => setKitchenF(k)} style={{ fontSize:11 }}>{k}</button>
+          <Chip key={k} label={k} size="small" clickable onClick={() => setKitchenF(k)}
+            color={kitchenF===k ? "primary" : "default"} variant={kitchenF===k ? "filled" : "outlined"}
+            sx={{ fontSize:11, fontWeight:600 }}/>
         ))}
-      </div>
+      </Stack>
 
       {/* Empty state */}
       {!loading && displayed.length === 0 ? (
@@ -718,7 +726,7 @@ ${o.kotNote ? `<p>🗒 ${o.kotNote}</p><hr/>` : ""}
           </button>
         </Modal>
       )}
-    </div>
+    </Box>
   );
 }
 

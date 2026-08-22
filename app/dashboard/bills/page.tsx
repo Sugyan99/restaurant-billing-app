@@ -2,6 +2,22 @@
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "@/components/Toast";
+import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import TextField from "@mui/material/TextField";
+import Stack from "@mui/material/Stack";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
 
 type SplitEntry = { mode: "CASH" | "UPI" | "CARD" | "CREDIT"; amount: number };
 type Bill = {
@@ -258,139 +274,85 @@ export default function BillsPage() {
   const approvalCount = bills.filter(b => b.discountApprovalStatus === "PENDING").length;
 
   return (
-    <div style={{ padding: "24px 20px", maxWidth: 1400, margin: "0 auto" }}>
+    <Box>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: "#1E293B", margin: 0 }}>📋 Bill History</h1>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input className="form-input" type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
-            style={{ fontSize: 13, padding: "6px 10px" }} />
-          <input className="form-input" placeholder="Search bill#, table, customer…" value={search}
-            onChange={e => setSearch(e.target.value)} style={{ fontSize: 13, padding: "6px 10px", minWidth: 200 }} />
-          <select className="form-input" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            style={{ fontSize: 13, padding: "6px 10px" }}>
-            <option value="all">All Bills</option>
-            <option value="PENDING">Pending</option>
-            <option value="PAID">Paid</option>
-            <option value="PARTIAL">Partial</option>
-            <option value="HOLD">On Hold</option>
-            <option value="VOID">Voided</option>
-            <option value="REFUNDED">Refunded</option>
-            <option value="APPROVAL">Awaiting Approval</option>
-          </select>
-          {filterDate && <button className="btn btn-ghost btn-sm" onClick={() => setFilterDate("")}>✕ Clear</button>}
-        </div>
-      </div>
+      <Box sx={{ display:"flex", justifyContent:"space-between", alignItems:"center", mb:2, flexWrap:"wrap", gap:1 }}>
+        <Typography variant="h5" sx={{ fontWeight:800, fontSize:{ xs:18, md:22 } }}>📋 Bill History</Typography>
+        <Stack direction="row" sx={{ flexWrap:"wrap", gap:1 }}>
+          <TextField type="date" size="small" value={filterDate} onChange={e => setFilterDate(e.target.value)} sx={{ width:{ xs:140, md:160 } }}/>
+          <TextField size="small" placeholder="Search bill#, table, customer…" value={search} onChange={e => setSearch(e.target.value)} sx={{ width:{ xs:"100%", sm:220 } }}/>
+          <Select size="small" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} sx={{ fontSize:13, minWidth:130 }}>
+            {[["all","All Bills"],["PENDING","Pending"],["PAID","Paid"],["PARTIAL","Partial"],["HOLD","On Hold"],["VOID","Voided"],["REFUNDED","Refunded"],["APPROVAL","Awaiting Approval"]].map(([v,l]) => (
+              <MenuItem key={v} value={v} sx={{ fontSize:13 }}>{l}</MenuItem>
+            ))}
+          </Select>
+          {filterDate && <Button size="small" variant="outlined" onClick={() => setFilterDate("")}>✕ Clear</Button>}
+        </Stack>
+      </Box>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 20 }}>
+      <Grid container spacing={1.5} sx={{ mb:2.5 }}>
         {[
-          { label: "Today's Revenue", value: `₹${todayRevenue.toFixed(0)}`, color: "#E8721C" },
-          { label: "Total Bills", value: bills.length, color: "#1E293B" },
-          { label: "Pending", value: pendingCount, color: "#CA8A04" },
-          { label: "Paid", value: bills.filter(b => b.paymentStatus === "PAID").length, color: "#16A34A" },
-          ...(approvalCount > 0 ? [{ label: "Need Approval", value: approvalCount, color: "#DC2626" }] : []),
+          { label:"Today's Revenue", value:`₹${todayRevenue.toFixed(0)}`, color:"#E8721C", bg:"#FFF7ED" },
+          { label:"Total Bills",      value:bills.length,                   color:"#1E293B", bg:"#F8FAFC" },
+          { label:"Pending",          value:pendingCount,                   color:"#CA8A04", bg:"#FEFCE8" },
+          { label:"Paid",             value:bills.filter(b=>b.paymentStatus==="PAID").length, color:"#16A34A", bg:"#F0FDF4" },
+          ...(approvalCount > 0 ? [{ label:"Need Approval", value:approvalCount, color:"#DC2626", bg:"#FEF2F2" }] : []),
         ].map(s => (
-          <div key={s.label} style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 16px" }}>
-            <div style={{ fontSize: 11, color: "#64748B", fontWeight: 600, marginBottom: 4 }}>{s.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
-          </div>
+          <Grid key={s.label} size={{ xs:6, sm:4, md:"auto" }}>
+            <Card elevation={0} sx={{ bgcolor:s.bg, border:`1px solid ${s.color}22`, minWidth:130 }}>
+              <CardContent sx={{ p:"12px 16px!important" }}>
+                <Typography sx={{ fontSize:11, color:"text.secondary", fontWeight:600, mb:.5 }}>{s.label}</Typography>
+                <Typography sx={{ fontSize:20, fontWeight:800, color:s.color }}>{s.value}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
         ))}
-      </div>
+      </Grid>
 
       {/* Table */}
-      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          {filtered.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "48px 0", color: "#94A3B8" }}>
-              No bills found. Generate bills from the Tables page.
-            </div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
-                  {["Bill #", "Order #", "Table/Type", "Total", "Discount", "Status", "Time", "Actions"].map(h => (
-                    <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
+      <Card elevation={0} sx={{ overflow:"hidden" }}>
+        <Box sx={{ overflowX:"auto" }}>
+          {filtered.length === 0
+            ? <Typography sx={{ textAlign:"center", py:6, color:"text.secondary" }}>No bills found. Generate bills from the Tables page.</Typography>
+            : <Table size="small">
+                <TableHead sx={{ bgcolor:"#F8FAFC" }}>
+                  <TableRow sx={{ "& th":{ fontSize:11, fontWeight:700, color:"text.secondary", textTransform:"uppercase", whiteSpace:"nowrap" } }}>
+                    {["Bill #","Order #","Table/Type","Total","Discount","Status","Time","Actions"].map(h => <TableCell key={h}>{h}</TableCell>)}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filtered.map(bill => (
+                    <TableRow key={bill.id} hover sx={{ cursor:"pointer", opacity:bill.billStatus==="VOID"?.6:1 }} onClick={() => setDetailBill(bill)}>
+                      <TableCell><Typography sx={{ fontWeight:700 }}>#{bill.billNumber}</Typography></TableCell>
+                      <TableCell sx={{ color:"text.secondary" }}>#{bill.order.orderNumber}</TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize:13 }}>{bill.order.table ? `Table ${bill.order.table.number}` : bill.order.type}</Typography>
+                        {bill.order.customerName && <Typography sx={{ fontSize:11, color:"text.secondary" }}>{bill.order.customerName}</Typography>}
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontWeight:700, color:"primary.main", whiteSpace:"nowrap" }}>₹{bill.total.toFixed(2)}</Typography>
+                        {bill.tip > 0 && <Typography sx={{ fontSize:10, color:"text.secondary" }}>+₹{bill.tip} tip</Typography>}
+                      </TableCell>
+                      <TableCell>{bill.discount > 0 ? <Typography sx={{ color:"#16A34A", fontWeight:600, fontSize:13 }}>-₹{bill.discount.toFixed(2)}</Typography> : "—"}</TableCell>
+                      <TableCell onClick={e => e.stopPropagation()}>{statusBadge(bill)}</TableCell>
+                      <TableCell sx={{ color:"text.secondary", fontSize:12, whiteSpace:"nowrap" }}>{new Date(bill.createdAt).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</TableCell>
+                      <TableCell onClick={e => e.stopPropagation()}>
+                        <Stack direction="row" spacing={.5}>
+                          <Button size="small" variant="contained" sx={{ fontSize:11, px:1, minWidth:0 }}
+                            onClick={() => openPayModal(bill)} disabled={bill.paymentStatus==="PAID"||bill.billStatus==="VOID"}>Pay</Button>
+                          <Button size="small" variant="outlined" sx={{ fontSize:11, px:1, minWidth:0 }} onClick={() => printBill(bill)}>🖨️</Button>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(bill => (
-                  <tr key={bill.id}
-                    style={{ borderBottom: "1px solid #F1F5F9", cursor: "pointer", opacity: bill.billStatus === "VOID" ? 0.6 : 1 }}
-                    onClick={() => setDetailBill(bill)}>
-                    <td style={{ padding: "11px 14px", fontWeight: 700 }}>#{bill.billNumber}</td>
-                    <td style={{ padding: "11px 14px", color: "#64748B" }}>#{bill.order.orderNumber}</td>
-                    <td style={{ padding: "11px 14px" }}>
-                      {bill.order.table ? `Table ${bill.order.table.number}` : bill.order.type}
-                      {bill.order.customerName && <div style={{ fontSize: 11, color: "#94A3B8" }}>{bill.order.customerName}</div>}
-                    </td>
-                    <td style={{ padding: "11px 14px", fontWeight: 700, color: "#E8721C", whiteSpace: "nowrap" }}>
-                      ₹{bill.total.toFixed(2)}
-                      {bill.tip > 0 && <span style={{ fontSize: 10, color: "#64748B", marginLeft: 4 }}>+₹{bill.tip} tip</span>}
-                    </td>
-                    <td style={{ padding: "11px 14px", color: "#64748B" }}>
-                      {bill.discount > 0 ? `₹${bill.discount.toFixed(2)}` : "—"}
-                      {bill.discountApprovalStatus === "PENDING" && <div style={{ fontSize: 10, color: "#EA580C" }}>Awaiting</div>}
-                      {bill.discountApprovalStatus === "REJECTED" && <div style={{ fontSize: 10, color: "#DC2626" }}>Rejected</div>}
-                    </td>
-                    <td style={{ padding: "11px 14px" }}>{statusBadge(bill)}</td>
-                    <td style={{ padding: "11px 14px", color: "#64748B", whiteSpace: "nowrap" }}>
-                      {new Date(bill.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                    </td>
-                    <td style={{ padding: "11px 14px" }} onClick={e => e.stopPropagation()}>
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => printBill(bill)} title="Print">🖨️</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => {
-                          const msg = `*Bill #${bill.billNumber}*\n${bill.order.table ? "Table " + bill.order.table.number : bill.order.type}\n*Total: ₹${bill.total.toFixed(2)}*\nThank you!`;
-                          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
-                        }} title="WhatsApp">📱</button>
+                </TableBody>
+              </Table>
+          }
+        </Box>
+      </Card>
 
-                        {/* Discount approval */}
-                        {canApprove && bill.discountApprovalStatus === "PENDING" && (
-                          <>
-                            <button className="btn btn-sm" style={{ background: "#DCFCE7", color: "#16A34A", padding: "3px 8px" }}
-                              onClick={() => approveDiscount(bill, "APPROVE")}>✓ Approve</button>
-                            <button className="btn btn-sm" style={{ background: "#FEE2E2", color: "#DC2626", padding: "3px 8px" }}
-                              onClick={() => approveDiscount(bill, "REJECT")}>✗ Reject</button>
-                          </>
-                        )}
-
-                        {/* Pay */}
-                        {bill.paymentStatus !== "PAID" && bill.billStatus === "ACTIVE" && bill.discountApprovalStatus !== "PENDING" && (
-                          <button className="btn btn-primary btn-sm" onClick={() => openPayModal(bill)}>💳 Pay</button>
-                        )}
-
-                        {/* Hold */}
-                        {bill.billStatus !== "VOID" && bill.billStatus !== "REFUNDED" && bill.paymentStatus !== "PAID" && (
-                          <button className="btn btn-ghost btn-sm" onClick={() => toggleHold(bill)}
-                            style={bill.billStatus === "HOLD" ? { color: "#CA8A04" } : {}}>
-                            {bill.billStatus === "HOLD" ? "▶ Unhold" : "⏸ Hold"}
-                          </button>
-                        )}
-
-                        {/* Void */}
-                        {canApprove && bill.billStatus === "ACTIVE" && bill.paymentStatus !== "PAID" && (
-                          <button className="btn btn-ghost btn-sm" style={{ color: "#DC2626" }}
-                            onClick={() => { setVoidBill(bill); setVoidReason(""); }}>🚫 Void</button>
-                        )}
-
-                        {/* Refund */}
-                        {canApprove && bill.paymentStatus === "PAID" && bill.billStatus !== "REFUNDED" && (
-                          <button className="btn btn-ghost btn-sm" style={{ color: "#7C3AED" }}
-                            onClick={() => { setRefundBill(bill); setRefundReason(""); setRefundAmount(""); }}>↩ Refund</button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-
-      {/* ── Payment Modal ── */}
+{/* ── Payment Modal ── */}
       {payBill && (() => {
         const { t, ro, finalTotal } = computeFinalTotal(payBill);
         const balance = payBill.total - (payBill.paidAmount ?? 0);
@@ -770,6 +732,6 @@ export default function BillsPage() {
           </div>
         </div>
       )}
-    </div>
+    </Box>
   );
 }
