@@ -1,8 +1,9 @@
 name: test-ui verify
 
 on:
-  push:
-    branches: [test-ui]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
@@ -14,8 +15,10 @@ jobs:
       JWT_SECRET: ci-only-test-secret-do-not-use-in-production
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
     steps:
-      - name: Checkout
+      - name: Checkout test-ui branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -36,5 +39,5 @@ jobs:
             echo "No package-lock changes to commit."
           else
             git commit -m "chore(ui): lock MUI dependencies"
-            git push
+            git push origin HEAD:${{ github.head_ref }}
           fi
