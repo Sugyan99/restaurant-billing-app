@@ -416,7 +416,18 @@ const CSS = `
 }
 .lb-right.lb-in{opacity:1;transform:translateX(0);}
 #login-right{display:flex;}
-@media(max-width:768px){#login-right{display:none!important;}}
+@media(max-width:768px){
+  #login-right{display:none!important;}
+  .lb-left{padding:20px 16px;}
+  .lb-wrap{max-width:100%!important;}
+  .lb-card{padding:24px 20px!important;}
+  .lb-card-title{font-size:20px!important;}
+  .lb-logo-ring{width:52px!important;height:52px!important;}
+  .lb-logo-icon{font-size:22px!important;}
+  .lb-input{font-size:14px!important;}
+  .lb-signin{font-size:14px!important;}
+  .lb-google-btn{font-size:13px!important;}
+}
 
 /* Wrap */
 .lb-wrap{max-width:400px;width:100%;opacity:0;transform:translateY(30px);transition:opacity .6s ease,transform .6s ease;}

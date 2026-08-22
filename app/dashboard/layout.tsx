@@ -6,7 +6,34 @@ import { ToastContainer } from "@/components/Toast";
 import { AIAssistant } from "@/components/AIAssistant";
 import NotificationBadge from "@/components/NotificationBadge";
 
-const NAV: { title: string; items: { href: string; icon: string; label: string; badge?: boolean }[] }[] = [
+/* ── MUI ── */
+import Box from "@mui/material/Box";
+import Drawer from "@mui/material/Drawer";
+import AppBar from "@mui/material/AppBar";
+import Toolbar from "@mui/material/Toolbar";
+import Typography from "@mui/material/Typography";
+import IconButton from "@mui/material/IconButton";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Collapse from "@mui/material/Collapse";
+import Badge from "@mui/material/Badge";
+import Chip from "@mui/material/Chip";
+import Avatar from "@mui/material/Avatar";
+import InputBase from "@mui/material/InputBase";
+import Paper from "@mui/material/Paper";
+import Popover from "@mui/material/Popover";
+import BottomNavigation from "@mui/material/BottomNavigation";
+import BottomNavigationAction from "@mui/material/BottomNavigationAction";
+import Divider from "@mui/material/Divider";
+import SwipeableDrawer from "@mui/material/SwipeableDrawer";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
+
+const DRAWER_W = 228;
+
+const NAV = [
   {
     title: "Operations",
     items: [
@@ -53,29 +80,43 @@ const NAV: { title: string; items: { href: string; icon: string; label: string; 
   },
 ];
 
-const allNav = NAV.flatMap(g => g.items);
+const BOTTOM_NAV = [
+  { href: "/dashboard/home",   icon: "🏠", label: "Home" },
+  { href: "/dashboard/tables", icon: "🪑", label: "Tables" },
+  { href: "/dashboard/orders", icon: "🍳", label: "Kitchen" },
+  { href: "/dashboard/bills",  icon: "🧾", label: "Bills" },
+  { href: "/dashboard/reports",icon: "📊", label: "Reports" },
+];
 
+const allNav = NAV.flatMap(g => g.items);
 type User = { name: string; role: string };
 type SearchResult = { type: string; label: string; sub: string; id: string };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const router   = useRouter();
+  const pathname  = usePathname();
+  const router    = useRouter();
+  const muiTheme  = useTheme();
+  const isMobile  = useMediaQuery(muiTheme.breakpoints.down("md"));
+
   const [user, setUser]               = useState<User | null>(null);
   const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
   const [openSection, setOpenSection] = useState<string>("Operations");
+  const [mobileOpen, setMobileOpen]   = useState(false);
   const [query, setQuery]             = useState("");
   const [pendingCount, setPendingCount] = useState<number | undefined>(undefined);
-  const [qrPending, setQrPending]       = useState<number>(0);
+  const [qrPending, setQrPending]     = useState(0);
   const [results, setResults]         = useState<SearchResult[]>([]);
   const [searching, setSearching]     = useState(false);
-  const [notifOpen, setNotifOpen]     = useState(false);
+  const [notifAnchor, setNotifAnchor] = useState<HTMLElement | null>(null);
   const [notifs, setNotifs]           = useState<{id:string;title:string;message:string;type:string;isRead:boolean;createdAt:string}[]>([]);
   const [unread, setUnread]           = useState(0);
+  const [bottomNav, setBottomNav]     = useState(0);
 
   useEffect(() => {
     const active = NAV.find(g => g.items.some(i => pathname.startsWith(i.href)));
     if (active) setOpenSection(active.title);
+    const bi = BOTTOM_NAV.findIndex(n => pathname.startsWith(n.href));
+    if (bi >= 0) setBottomNav(bi);
   }, [pathname]);
 
   useEffect(() => {
@@ -124,8 +165,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   function canAccess(href: string) {
     if (allowedPages.includes("*")) return true;
-    const pageId = href.replace("/dashboard/", "");
-    return allowedPages.includes(pageId);
+    return allowedPages.includes(href.replace("/dashboard/", ""));
   }
 
   useEffect(() => {
@@ -136,165 +176,276 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const currentPage = allNav.find(n => pathname.startsWith(n.href));
 
-  return (
-    <div>
-      <aside className="sidebar" aria-label="Main sidebar">
-        <div className="sidebar-logo">
-          <h1>🍽️ RestoBill</h1>
-          <p>Restaurant POS</p>
-        </div>
+  /* ── Sidebar content ── */
+  const drawerContent = (
+    <Box sx={{ display:"flex", flexDirection:"column", height:"100%", bgcolor:"#0F1623" }}>
+      {/* Logo */}
+      <Box sx={{ px:2.5, py:2, borderBottom:"1px solid #1E2D42" }}>
+        <Typography sx={{ color:"#E8721C", fontWeight:800, fontSize:18, letterSpacing:"-0.5px" }}>
+          🍽️ RestoBill
+        </Typography>
+        <Typography sx={{ color:"#3A4A62", fontSize:11, mt:0.3 }}>Restaurant POS</Typography>
+      </Box>
 
-        <nav className="sidebar-nav" style={{ overflowY: "auto", flex: 1 }} role="navigation">
-          {NAV.map(group => {
-            const visible = group.items.filter(i => canAccess(i.href));
-            if (visible.length === 0) return null;
-            const isOpen   = openSection === group.title;
-            const hasActive = visible.some(i => pathname.startsWith(i.href));
+      {/* Nav */}
+      <Box sx={{ flex:1, overflowY:"auto", py:1,
+        "&::-webkit-scrollbar":{ width:4 },
+        "&::-webkit-scrollbar-thumb":{ background:"#1E2D42", borderRadius:4 },
+      }}>
+        {NAV.map(group => {
+          const visible = group.items.filter(i => canAccess(i.href));
+          if (!visible.length) return null;
+          const isOpen   = openSection === group.title;
+          const hasActive = visible.some(i => pathname.startsWith(i.href));
 
-            return (
-              <div key={group.title}>
-                <button
-                  onClick={() => setOpenSection(isOpen ? "" : group.title)}
-                  aria-expanded={isOpen}
-                  style={{
-                    width: "100%", background: "none", border: "none", cursor: "pointer",
-                    padding: "9px 16px", display: "flex", justifyContent: "space-between",
-                    alignItems: "center", color: hasActive ? "#E8721C" : "#4A5A72",
-                    fontSize: 10, fontWeight: 700, letterSpacing: .7, textTransform: "uppercase",
-                    borderLeft: hasActive && !isOpen ? "2px solid #E8721C" : "2px solid transparent",
-                    transition: "all .15s",
-                  }}
-                >
-                  <span>{group.title}</span>
-                  <span style={{ fontSize: 9, opacity: .6 }}>{isOpen ? "▲" : "▼"}</span>
-                </button>
+          return (
+            <Box key={group.title}>
+              <ListItemButton
+                onClick={() => setOpenSection(isOpen ? "" : group.title)}
+                sx={{
+                  py:0.9, px:2, mx:0,
+                  "& .MuiListItemText-primary": {
+                    fontSize:10, fontWeight:700, letterSpacing:.8,
+                    textTransform:"uppercase",
+                    color: hasActive ? "#E8721C" : "#4A5A72",
+                  },
+                  borderLeft: hasActive && !isOpen ? "2px solid #E8721C" : "2px solid transparent",
+                  borderRadius:0, mr:0,
+                  "&:hover":{ background:"rgba(255,255,255,0.04)" },
+                }}
+              >
+                <ListItemText primary={group.title} />
+                <Typography sx={{ fontSize:9, color:"#4A5A72", opacity:.7 }}>{isOpen?"▲":"▼"}</Typography>
+              </ListItemButton>
 
-                <div style={{
-                  maxHeight: isOpen ? `${visible.length * 44}px` : "0px",
-                  overflow: "hidden",
-                  transition: "max-height 220ms ease",
-                }}>
+              <Collapse in={isOpen} timeout={200}>
+                <List disablePadding>
                   {visible.map(item => {
                     const active = pathname.startsWith(item.href);
+                    const cnt    = item.href.includes("qr-orders") ? qrPending : pendingCount;
                     return (
-                      <Link
+                      <ListItemButton
                         key={item.href}
+                        component={Link}
                         href={item.href}
-                        className={`nav-item ${active ? "active" : ""}`}
-                        aria-current={active ? "page" : undefined}
+                        selected={active}
+                        onClick={() => isMobile && setMobileOpen(false)}
+                        sx={{ py:0.85, pl:2.5, pr:1 }}
                       >
-                        <span style={{ fontSize: 15 }}>{item.icon}</span>
-                        <span style={{ flex: 1 }}>{item.label}</span>
-                        {item.badge && (() => {
-                          const cnt = item.href.includes("qr-orders") ? qrPending : pendingCount;
-                          return <NotificationBadge count={cnt} showDot={cnt === 0} ariaLabel={`${cnt ?? 0} pending`} />;
-                        })()}
-                      </Link>
+                        <ListItemIcon sx={{ minWidth:32 }}>
+                          <Typography sx={{ fontSize:15 }}>{item.icon}</Typography>
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={item.label}
+                          slotProps={{ primary: { style: { fontSize:12.5, fontWeight: active ? 700 : 400, color: active ? "#E8721C" : "#94A3B8" } } }}
+                        />
+                        {item.badge && <NotificationBadge count={cnt} showDot={cnt === 0} ariaLabel={`${cnt??0} pending`} />}
+                      </ListItemButton>
                     );
                   })}
-                </div>
-              </div>
-            );
-          })}
-        </nav>
+                </List>
+              </Collapse>
+            </Box>
+          );
+        })}
+      </Box>
 
-        <div style={{ borderTop: "1px solid #1E2D42", padding: "12px 16px", flexShrink: 0 }}>
-          {user && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#CBD5E1", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.name}</div>
-              <div style={{ fontSize: 10, color: "#3A4A62", fontWeight: 600 }}>{user.role}</div>
-            </div>
-          )}
-          <button onClick={logout} style={{
-            background: "#1E2D42", border: "none", width: "100%", cursor: "pointer",
-            color: "#94A3B8", fontSize: 12, padding: "7px 0", borderRadius: 6,
-            display: "flex", alignItems: "center", gap: 8, justifyContent: "center",
-            transition: "all 0.15s",
+      {/* User + Logout */}
+      <Box sx={{ borderTop:"1px solid #1E2D42", p:2 }}>
+        {user && (
+          <Box sx={{ mb:1.5, display:"flex", alignItems:"center", gap:1.5 }}>
+            <Avatar sx={{ width:32, height:32, bgcolor:"#E8721C", fontSize:13, fontWeight:800 }}>
+              {user.name?.[0]?.toUpperCase()}
+            </Avatar>
+            <Box sx={{ overflow:"hidden" }}>
+              <Typography sx={{ fontSize:12, fontWeight:700, color:"#CBD5E1", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.name}</Typography>
+              <Chip label={user.role} size="small" sx={{ fontSize:9, height:16, bgcolor:"rgba(232,114,28,0.15)", color:"#E8721C", fontWeight:700, "& .MuiChip-label":{px:1} }} />
+            </Box>
+          </Box>
+        )}
+        <ListItemButton
+          onClick={logout}
+          sx={{ borderRadius:2, py:0.75, justifyContent:"center", gap:1,
+            bgcolor:"#1E2D42", color:"#94A3B8", fontSize:12,
+            "&:hover":{ bgcolor:"#DC2626", color:"#fff" },
           }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#DC2626"}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "#1E2D42"}
-          >
-            <span>🚪</span><span>Logout</span>
-          </button>
-        </div>
-      </aside>
+        >
+          <Typography sx={{ fontSize:14 }}>🚪</Typography>
+          <Typography sx={{ fontSize:12, fontWeight:600 }}>Logout</Typography>
+        </ListItemButton>
+      </Box>
+    </Box>
+  );
 
-      <main className="main-content">
-        <div className="topbar">
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span className="topbar-title">{currentPage?.icon} {currentPage?.label ?? "Dashboard"}</span>
-          </div>
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ position: "relative" }}>
-              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="🔍 Search..."
-                onBlur={() => setTimeout(() => setQuery(""), 200)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, width: 200, outline: "none" }} />
-              {(searching || results.length > 0) && (
-                <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "white", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", width: 320, zIndex: 300 }}>
-                  {searching && <div style={{ padding: "12px 16px", fontSize: 12, color: "#94A3B8" }}>Searching…</div>}
-                  {results.map((r, i) => (
-                    <div key={i} style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9", cursor: "pointer", fontSize: 12 }} onMouseDown={() => setQuery("")}>
-                      <div style={{ fontWeight: 600 }}>{r.label}</div>
-                      <div style={{ fontSize: 11, color: "#64748B" }}>{r.type} · {r.sub}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+  return (
+    <Box sx={{ display:"flex", minHeight:"100vh", bgcolor:"background.default" }}>
 
-            <span style={{ fontSize: 12, color: "#94A3B8" }}>
-              {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-            </span>
+      {/* Desktop permanent drawer */}
+      {!isMobile && (
+        <Drawer variant="permanent" sx={{
+          width:DRAWER_W, flexShrink:0,
+          "& .MuiDrawer-paper":{ width:DRAWER_W, boxSizing:"border-box" },
+        }}>
+          {drawerContent}
+        </Drawer>
+      )}
 
-            <div style={{ position: "relative" }}>
-              <button onClick={() => { setNotifOpen(o => !o); if (!notifOpen && unread > 0) markAllRead(); }}
-                style={{ background: "none", border: "1px solid #E2E8F0", borderRadius: 8, padding: "5px 9px", cursor: "pointer", fontSize: 16, position: "relative", display: "flex", alignItems: "center" }}>
-                🔔
-                {unread > 0 && (
-                  <span style={{ position: "absolute", top: -4, right: -4, background: "#DC2626", color: "white", borderRadius: "50%", fontSize: 9, fontWeight: 800, width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {unread > 9 ? "9+" : unread}
-                  </span>
-                )}
-              </button>
-              {notifOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: 320, background: "white", border: "1px solid #E2E8F0", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.14)", zIndex: 200, overflow: "hidden" }}>
-                  <div style={{ padding: "12px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontWeight: 700, fontSize: 13 }}>Notifications</span>
-                    <button onClick={markAllRead} style={{ background: "none", border: "none", fontSize: 11, color: "#E8721C", cursor: "pointer", fontWeight: 600 }}>Mark all read</button>
-                  </div>
-                  <div style={{ maxHeight: 340, overflowY: "auto" }}>
-                    {notifs.length === 0
-                      ? <div style={{ padding: "24px 16px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>No notifications</div>
-                      : notifs.map(n => (
-                        <div key={n.id} style={{ padding: "10px 16px", borderBottom: "1px solid #F8FAFC", background: n.isRead ? "white" : "#FFF7ED", display: "flex", gap: 10, alignItems: "flex-start" }}>
-                          <span style={{ fontSize: 16, flexShrink: 0 }}>{n.type==="ERROR"?"🔴":n.type==="SUCCESS"?"✅":n.type==="WARNING"?"⚠️":"ℹ️"}</span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 2 }}>{n.title}</div>
-                            <div style={{ fontSize: 11, color: "#64748B", lineHeight: 1.4 }}>{n.message}</div>
-                            <div style={{ fontSize: 10, color: "#CBD5E1", marginTop: 4 }}>{new Date(n.createdAt).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</div>
-                          </div>
-                          {!n.isRead && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E8721C", flexShrink: 0, marginTop: 4 }} />}
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
+      {/* Mobile swipeable drawer */}
+      {isMobile && (
+        <SwipeableDrawer
+          open={mobileOpen}
+          onOpen={() => setMobileOpen(true)}
+          onClose={() => setMobileOpen(false)}
+          sx={{ "& .MuiDrawer-paper":{ width:DRAWER_W } }}
+        >
+          {drawerContent}
+        </SwipeableDrawer>
+      )}
 
-            {user && (
-              <div style={{ background: "#FFF0E5", border: "1px solid #FDBA74", borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 700, color: "#E8721C" }}>
-                {user.role}
-              </div>
+      {/* Main */}
+      <Box sx={{ flex:1, display:"flex", flexDirection:"column", minWidth:0,
+        ml: isMobile ? 0 : 0,
+      }}>
+
+        {/* AppBar */}
+        <AppBar position="sticky" elevation={0} sx={{ zIndex:30 }}>
+          <Toolbar sx={{ gap:1.5, minHeight:"56px!important", px: { xs:1.5, md:3 } }}>
+
+            {/* Hamburger (mobile) */}
+            {isMobile && (
+              <IconButton onClick={() => setMobileOpen(true)} edge="start" sx={{ mr:0.5, color:"inherit" }}>
+                <Typography sx={{ fontSize:20 }}>☰</Typography>
+              </IconButton>
             )}
-          </div>
-        </div>
 
-        <div className="page-body">{children}</div>
-      </main>
+            <Typography variant="subtitle1" sx={{ fontWeight:700, mr:"auto", fontSize:{ xs:13, md:15 }, whiteSpace:"nowrap" }}>
+              {currentPage?.icon} {currentPage?.label ?? "Dashboard"}
+            </Typography>
+
+            {/* Search (hidden on xs, shown from sm) */}
+            <Paper elevation={0} sx={{
+              display:{ xs:"none", sm:"flex" }, alignItems:"center",
+              border:"1px solid #E2E8F0", borderRadius:3, px:1.5, py:0.4, width:{ sm:160, md:210 },
+              position:"relative",
+            }}>
+              <Typography sx={{ fontSize:13, mr:1, opacity:.5 }}>🔍</Typography>
+              <InputBase
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onBlur={() => setTimeout(() => setQuery(""), 200)}
+                placeholder="Search…"
+                sx={{ fontSize:13, flex:1 }}
+              />
+              {(searching || results.length > 0) && (
+                <Paper elevation={4} sx={{
+                  position:"absolute", top:"calc(100% + 6px)", right:0,
+                  width:310, zIndex:300, borderRadius:2, overflow:"hidden",
+                }}>
+                  {searching && <Typography sx={{ p:2, fontSize:12, color:"text.secondary" }}>Searching…</Typography>}
+                  {results.map((r,i) => (
+                    <Box key={i} onMouseDown={() => setQuery("")} sx={{
+                      px:2, py:1.25, cursor:"pointer", borderBottom:"1px solid #F1F5F9",
+                      "&:hover":{ bgcolor:"#F8FAFC" },
+                    }}>
+                      <Typography sx={{ fontSize:12, fontWeight:600 }}>{r.label}</Typography>
+                      <Typography sx={{ fontSize:11, color:"text.secondary" }}>{r.type} · {r.sub}</Typography>
+                    </Box>
+                  ))}
+                </Paper>
+              )}
+            </Paper>
+
+            {/* Date */}
+            <Typography sx={{ fontSize:12, color:"text.secondary", display:{ xs:"none", md:"block" }, whiteSpace:"nowrap" }}>
+              {new Date().toLocaleDateString("en-IN", { day:"numeric", month:"short" })}
+            </Typography>
+
+            {/* Notifications */}
+            <IconButton
+              onClick={e => { setNotifAnchor(e.currentTarget); if (unread>0) markAllRead(); }}
+              sx={{ border:"1px solid #E2E8F0", borderRadius:2, p:0.8 }}
+            >
+              <Badge badgeContent={unread||null} color="error" sx={{ "& .MuiBadge-badge":{ fontSize:9, minWidth:16, height:16 } }}>
+                <Typography sx={{ fontSize:16, lineHeight:1 }}>🔔</Typography>
+              </Badge>
+            </IconButton>
+
+            {/* Notif popover */}
+            <Popover
+              open={Boolean(notifAnchor)}
+              anchorEl={notifAnchor}
+              onClose={() => setNotifAnchor(null)}
+              anchorOrigin={{ vertical:"bottom", horizontal:"right" }}
+              transformOrigin={{ vertical:"top", horizontal:"right" }}
+              slotProps={{ paper: { sx:{ width:320, borderRadius:2, mt:0.5 } } }}
+            >
+              <Box sx={{ px:2, py:1.5, display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #F1F5F9" }}>
+                <Typography sx={{ fontWeight:700, fontSize:13 }}>Notifications</Typography>
+                <Typography onClick={markAllRead} sx={{ fontSize:11, color:"primary.main", cursor:"pointer", fontWeight:600 }}>Mark all read</Typography>
+              </Box>
+              <Box sx={{ maxHeight:340, overflowY:"auto" }}>
+                {notifs.length === 0
+                  ? <Typography sx={{ p:3, textAlign:"center", color:"text.secondary", fontSize:13 }}>No notifications</Typography>
+                  : notifs.map(n => (
+                    <Box key={n.id} sx={{
+                      px:2, py:1.25, borderBottom:"1px solid #F8FAFC",
+                      bgcolor: n.isRead ? "white" : "#FFF7ED",
+                      display:"flex", gap:1.5, alignItems:"flex-start",
+                    }}>
+                      <Typography sx={{ fontSize:15, flexShrink:0 }}>
+                        {n.type==="ERROR"?"🔴":n.type==="SUCCESS"?"✅":n.type==="WARNING"?"⚠️":"ℹ️"}
+                      </Typography>
+                      <Box sx={{ flex:1, minWidth:0 }}>
+                        <Typography sx={{ fontWeight:600, fontSize:12, mb:0.25 }}>{n.title}</Typography>
+                        <Typography sx={{ fontSize:11, color:"text.secondary", lineHeight:1.45 }}>{n.message}</Typography>
+                        <Typography sx={{ fontSize:10, color:"#CBD5E1", mt:0.5 }}>
+                          {new Date(n.createdAt).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
+                        </Typography>
+                      </Box>
+                      {!n.isRead && <Box sx={{ width:6, height:6, borderRadius:"50%", bgcolor:"primary.main", flexShrink:0, mt:0.5 }} />}
+                    </Box>
+                  ))
+                }
+              </Box>
+            </Popover>
+
+            {/* Role badge */}
+            {user && (
+              <Chip
+                label={user.role}
+                size="small"
+                sx={{ bgcolor:"#FFF0E5", color:"#E8721C", fontWeight:700, fontSize:10, display:{ xs:"none", sm:"flex" } }}
+              />
+            )}
+          </Toolbar>
+        </AppBar>
+
+        {/* Page content */}
+        <Box component="main" sx={{ flex:1, p:{ xs:1.5, sm:2, md:3 }, pb: isMobile ? 10 : 3 }}>
+          {children}
+        </Box>
+
+        {/* Mobile bottom navigation */}
+        {isMobile && (
+          <BottomNavigation
+            value={bottomNav}
+            onChange={(_, v) => { setBottomNav(v); router.push(BOTTOM_NAV[v].href); }}
+            sx={{ position:"fixed", bottom:0, left:0, right:0, zIndex:50 }}
+          >
+            {BOTTOM_NAV.map(n => (
+              <BottomNavigationAction
+                key={n.href}
+                label={n.label}
+                icon={<Typography sx={{ fontSize:20 }}>{n.icon}</Typography>}
+                sx={{ "& .MuiBottomNavigationAction-label":{ fontSize:"10px!important", color:"inherit" } }}
+              />
+            ))}
+          </BottomNavigation>
+        )}
+      </Box>
 
       <ToastContainer />
       <AIAssistant />
-    </div>
+    </Box>
   );
 }
